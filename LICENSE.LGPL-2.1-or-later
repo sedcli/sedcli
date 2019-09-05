@@ -1,0 +1,27 @@
+libsed - library allowing programmatic management of Self-Encrypting Drives
+
+Copyright (C) 2018-2019 Intel Corporation
+
+This library is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser General Public License as published
+by the Free Software Foundation; either version 2.1 of the License,
+or (at your option) any later version.
+
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this library; if not, see <http://www.gnu.org/licenses/>.
+
+In addition, as a special exception, the copyright holders of libsed give
+you permission to combine libsed simultaneously with free software programs
+or libraries that are released under the GNU GPL (with or without an
+exception for OpenSSL's license) and with code included in the standard
+release of OpenSSL under the OpenSSL license (or modified versions of such
+code, with unchanged license). You may copy and distribute such a system
+following the terms of the GNU GPL for libsed and the licenses of the other
+code concerned.
+
+SPDX-License-Identifier: LGPL-2.1-or-later

@@ -1,0 +1,83 @@
+.TH sedcli 8
+.SH NAME
+sedcli \- manage Opal Self-Encrypting Drives (SEDs) NVMe SSDs
+
+.SH SYNOPSIS
+
+\fBsedcli\fR <command> [options...]
+
+.SH DESCRIPTION
+Sedcli enables a system Administrator/Operator to manage NVMe SEDs that are TCG
+Opal compliant. In Opal terminology SED is called a Trusted Peripheral (TPer)
+and provides an Admin Security Provider (Admin SP) and Locking Security Provider
+(Locking SP).
+
+.PP
+Management of the TCG Opal features require several operations that are performed
+as an Administrator within the TCG Opal command set to either the AdminSP or
+LockingSP. The AdminSP provides commands that enable the user to perform
+administrative operations such as taking ownership of the device, activation of
+the LockingSP, and revert the TPer, whereas the LockingSP provides commands that
+enable the user to configure and enable locking enforcement on user data either
+globally or on a locking range basis after the LockingSP has been activated by
+the AdminSP.
+
+.PP
+To start Opal management, an Administrator typically needs to perform the
+following process at a minimum:
+.IP
+1. Take ownership of the device (setting a non-MSID credential for the SID
+Authority in the AdminSP)
+.IP
+2. Activate the LockingSP (this will move the Opal feature to the Manufactured
+state and copy the SID authority password to the LockingSP Admin1 password)
+.IP
+3. Enable Read Lock Enabled and Write Lock Enabled on all desired ranges
+(e.g. Global Range)
+.PP
+After these steps are accomplished, the TPer will be Read or Write locked after
+power cycle or when explicitly locked using sedcli command.
+
+.PP
+In addition to these basic flows, one can perform crypto erase of the TPer
+using the SID authority or the PSID authority as part of revert TPer operation.
+In case of using the PSID authority the operator needs to provide the credential
+that is printed on the disk label. The Revert TPer operation reverts device
+back to the Manufactured-Inactive state, which then requires re-configuration
+of the Opal management system using the process previously identified (i.e.
+take ownership, activate LSP, enable global range). It is also possible to
+update Admin1 password for Locking SP.
+
+.SH OPTIONS
+.IP "\fB\-O -d <device>\fR or \fB\-\-ownership --device <device>\fR"
+Takes ownership of the device.
+
+.IP "\fB\-A -d <device>\fR or \fB\-\-activate-lsp --device <device>\fR"
+Activates Locking SP.
+
+.IP "\fB\-R -d <device> [-i]\fR or \fB\-\-revert --device <device> [--psid]\fR"
+Reverts TPer to Manufactured-Inactivate state using either SID or PSID authority.
+
+.IP "\fB\-L -d <device> -t <locktype>\fR or \fB\-\-lock-unlock --device <device> --locktype {RW|RO|WO|UNLOCK}\fR"
+Changes the lock state for the device. There is a possibility to setup Read lock,
+Write lock and Read-Write lock and unlock the device.
+
+.IP "\fB\-P -d <device>\fR or \fB\-\-set-password --device <device>\fR"
+Updates password for Admin1 authority in Locking SP.
+
+.IP "\fB\-V\fR or \fB\-\-version\fR"
+Prints version of sedcli.
+
+.IP "\fB\-H\fR or \fB\-\-help\fR"
+Prints help on usage.
+
+
+.SH COPYRIGHT
+Copyright(c) 2018-2019 by the Intel Corporation.
+
+.SH AUTHOR
+This manual page was created by Andrzej Jakowski <andrzej.jakowski@intel.com>
+
+.SH SEE ALSO
+.TP
+sedcli(8)

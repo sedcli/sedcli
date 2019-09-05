@@ -1,0 +1,10 @@
+sedcli is made available under the terms of GPL-2.0-or-later license.
+
+libsed is made available under the terms of LGPL-2.1-or-later licens.
+
+Contributions into sedcli are accepted on GPL-2.0-or-later license,
+while contributions into libsed are accepted on LGPL-2.1-or-later
+license.
+All patches must be signedoff by the developer, which indicates that
+submitter agress to the Developer Certificate of Origin
+<https://developercertificate.org/>.

@@ -1,0 +1,184 @@
+#!/bin/bash
+
+#
+# Copyright (C) 2018-2019 Intel Corporation
+#
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+
+TMP_SRC="`mktemp`.c"
+TMP_BIN="`mktemp`"
+
+CONFIG_LOG="config.log"
+CONFIG_MK="config.mk"
+CONFIG_H="config.h"
+
+cc=gcc
+
+rm -fr ${CONFIG_LOG} ${CONFIG_MK} ${CONFIG_H}
+touch ${CONFIG_LOG}
+
+touch ${CONFIG_H}
+touch ${CONFIG_MK}
+
+function app_config_mk() {
+	echo "${1}" >> ${CONFIG_MK}
+}
+
+function app_config_h() {
+	echo "$1" >> ${CONFIG_H}
+}
+
+function print_status() {
+	printf "%-30s%s\n" "$1" "$2"
+}
+
+function test_compile() {
+	echo "Compiling test case $1" >> config.log
+
+	$cc $2 $3 -o $TMP_BIN $TMP_SRC >> config.log 2>&1 || return $?
+}
+
+function generate_version() {
+	which git > /dev/null 2>&1
+	if [ $? -eq 0 ] && [ -e ../.git ]; then
+		SEDCLI_VERSION="`git describe HEAD 2>/dev/null`"
+	else
+		SEDCLI_VERSION="v0.1"
+	fi
+	echo "#define SEDCLI_VERSION (\"${SEDCLI_VERSION}\")" >> ${CONFIG_H}
+}
+
+function common_def() {
+	app_config_h "#define _GNU_SOURCE"
+	app_config_h "#define __CHECK_ENDIAN__"
+}
+
+function common_mk() {
+	app_config_mk "CFLAGS+=-include ${CONFIG_H}"
+	app_config_mk "CFLAGS+=-O2 -g -Wall -Werror -Wno-unused-function -Wno-address-of-packed-member -fstack-protector-all -std=gnu99"
+	app_config_mk "LDFLAGS+=-L."
+}
+
+function print_help() {
+	echo "Configures sedcli build procedure"
+	echo "Options:"
+	echo "    --enable-kmip           Doesn't take any effect yet"
+	echo "    --enable-logging        Turns on sedcli debug logging to stdout"
+	echo "    --force-nvme-pt         Force compilation of NVMe PT interface, instead of using kernel Opal driver (if available)"
+}
+
+function print_summary() {
+	echo ""
+	echo "Configuration written to: ${CONFIG_MK} ${CONFIG_H}"
+	echo "See more details in ${CONFIG_LOG}"
+}
+
+# Default settings
+kmip_enabled="no"
+sedcli_logging="no"
+force_nvme_pt="no"
+
+# Process user specified options
+for option do
+	case "$option" in
+	--force-nvme-pt) force_nvme_pt="yes"
+	;;
+	--enable-kmip) kmip_enabled="yes"
+	;;
+	--enable-logging) sedcli_logging="yes"
+	;;
+	--help)
+	print_help
+	exit 0
+	;;
+	*)
+	echo "Wrong option: ${option}"
+	esac
+done
+
+# Common and basic stuff
+app_config_mk "CC=gcc"
+generate_version
+common_def
+common_mk
+
+# Handle library logging
+if [ "${sedcli_logging}" == "yes" ]; then
+	app_config_h "#define SEDCLI_DEBUG_LOGGING"
+fi
+print_status "Debug logging" ${sedcli_logging}
+
+# ==========================================
+# Handle enabled kmip
+if [ "${kmip_enabled}" == "yes" ]; then
+	# Clone libkmip repo
+	pushd . > /dev/null
+	cd ../
+	git submodule update --init
+	ret_code=$?
+	popd > /dev/null
+
+	cat > $TMP_SRC <<EOF
+#include <openssl/hmac.h>
+
+int main(int argc, char **argv)
+{
+	HMAC_CTX *ctx;
+
+	ctx = HMAC_CTX_new();
+	HMAC_CTX_reset(ctx);
+	HMAC_CTX_free(ctx);
+
+	return 0;
+}
+EOF
+
+	if [ "${ret_code}" -eq "0" ] && test_compile "openssl" "" "-lcrypto -lssl"; then
+		print_status "KMIP support" "yes"
+		app_config_mk "CONFIG_KMIP=y"
+		app_config_mk "LDFLAGS_KMIP+=-L../libkmip -lkmip -lcrypto -lssl"
+	else
+		print_status "KMIP support" "no"
+	fi
+fi
+# ==========================================
+
+# ==========================================
+# Handle Opal driver discovery
+cat > $TMP_SRC <<EOF
+#include <linux/sed-opal.h>
+#include <sys/ioctl.h>
+int main(void)
+{
+	int ioctl_code = IOC_OPAL_SAVE;
+	return 0;
+}
+EOF
+
+if test_compile "sed interface" && [ "${force_nvme_pt}" == "no" ]; then
+	print_status "SED interface" "opal-driver"
+	app_config_mk "CONFIG_OPAL_DRIVER=y"
+	app_config_h "#define CONFIG_OPAL_DRIVER"
+cat > $TMP_SRC <<EOF
+#include <linux/sed-opal.h>
+#include <sys/ioctl.h>
+int main(void)
+{
+	int ioctl_code = IOC_OPAL_PSID_REVERT_TPR;
+	return 0;
+}
+EOF
+	if test_compile "Opal PSID revert"; then
+		app_config_h "#define CONFIG_OPAL_DRIVER_PSID_REVERT"
+	fi
+else
+	print_status "SED interface" "NVMe-PT"
+fi
+# ==========================================
+
+
+print_summary
+
+# Cleanup
+rm -fr ${TMP_SRC} ${TMP_BIN}

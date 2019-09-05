@@ -1,0 +1,2125 @@
+/*
+ * Copyright (C) 2018-2019 Intel Corporation
+ *
+ * SPDX-License-Identifier: LGPL-2.1-or-later
+ */
+
+#include <linux/fs.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+#include <fcntl.h>
+#include <errno.h>
+#include <endian.h>
+#include <unistd.h>
+#include <stdbool.h>
+
+#include "nvme_pt_ioctl.h"
+#include "nvme_access.h"
+#include "sed_util.h"
+#include "sedcli_log.h"
+#include "opal_parser.h"
+
+#define OPAL_FEAT_TPER       0x0001
+#define OPAL_FEAT_LOCKING    0x0002
+#define OPAL_FEAT_GEOMETRY   0x0003
+#define OPAL_FEAT_DATASTORE  0x0202
+#define OPAL_FEAT_SUM        0x0201
+#define OPAL_FEAT_OPALV100   0x0200
+#define OPAL_FEAT_OPALV200   0x0203
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+#define MIN(x,y)  (((x - y) >> 63) & 1) ? x : y
+
+#define IO_BUFFER_LEN 2048
+
+struct opal_device {
+	uint16_t comid;
+
+	uint8_t req_buf[IO_BUFFER_LEN];
+	uint8_t resp_buf[IO_BUFFER_LEN];
+
+	struct opal_parsed_payload payload;
+
+	struct {
+		uint32_t hsn;
+		uint32_t tsn;
+	} session;
+};
+
+static uint8_t opal_uid[][OPAL_UID_LENGTH] = {
+	[OPAL_SM_UID] =
+		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff },
+	[OPAL_THISSP_UID] =
+		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_ADMIN_SP_UID] =
+		{ 0x00, 0x00, 0x02, 0x05, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_LOCKING_SP_UID] =
+		{ 0x00, 0x00, 0x02, 0x05, 0x00, 0x00, 0x00, 0x02 },
+	[OPAL_ENTERPRISE_LOCKING_SP_UID] =
+		{ 0x00, 0x00, 0x02, 0x05, 0x00, 0x01, 0x00, 0x01 },
+	[OPAL_ANYBODY_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_SID_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x06 },
+	[OPAL_ADMIN1_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x01, 0x00, 0x01 },
+	[OPAL_USER1_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x03, 0x00, 0x01 },
+	[OPAL_USER2_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x03, 0x00, 0x02 },
+	[OPAL_PSID_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x01, 0xff, 0x01 },
+	[OPAL_ENTERPRISE_BANDMASTER0_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x80, 0x01 },
+	[OPAL_ENTERPRISE_ERASEMASTER_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x84, 0x01 },
+
+	/* tables UIDs*/
+	[OPAL_TABLE_TABLE_UID] =
+		{ 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_LOCKINGRANGE_GLOBAL_UID] =
+		{ 0x00, 0x00, 0x08, 0x02, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_LOCKINGRANGE_ACE_RDLOCKED_UID] =
+		{ 0x00, 0x00, 0x00, 0x08, 0x00, 0x03, 0xE0, 0x01 },
+	[OPAL_LOCKINGRANGE_ACE_WRLOCKED_UID] =
+		{ 0x00, 0x00, 0x00, 0x08, 0x00, 0x03, 0xE8, 0x01 },
+	[OPAL_MBRCONTROL_UID] =
+		{ 0x00, 0x00, 0x08, 0x03, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_MBR_UID] =
+		{ 0x00, 0x00, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00 },
+	[OPAL_AUTHORITY_TABLE_UID] =
+		{ 0x00, 0x00, 0x00, 0x09, 0x00, 0x00, 0x00, 0x00},
+	[OPAL_C_PIN_TABLE_UID] =
+		{ 0x00, 0x00, 0x00, 0x0B, 0x00, 0x00, 0x00, 0x00},
+	[OPAL_LOCKING_INFO_TABLE_UID] =
+		{ 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x01 },
+	[OPAL_ENTERPRISE_LOCKING_INFO_TABLE_UID] =
+		{ 0x00, 0x00, 0x08, 0x01, 0x00, 0x00, 0x00, 0x00 },
+	[OPAL_DATASTORE_UID] =
+		{ 0x00, 0x00, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00 },
+
+	/* C_PIN_TABLE object UIDs */
+	[OPAL_C_PIN_MSID_UID] =
+		{ 0x00, 0x00, 0x00, 0x0B, 0x00, 0x00, 0x84, 0x02},
+	[OPAL_C_PIN_SID_UID] =
+		{ 0x00, 0x00, 0x00, 0x0B, 0x00, 0x00, 0x00, 0x01},
+	[OPAL_C_PIN_ADMIN1_UID] =
+		{ 0x00, 0x00, 0x00, 0x0B, 0x00, 0x01, 0x00, 0x01},
+
+	/* half UID's (only first 4 bytes used) */
+	[OPAL_HALF_UID_AUTHORITY_OBJ_REF_UID] =
+		{ 0x00, 0x00, 0x0C, 0x05, 0xff, 0xff, 0xff, 0xff },
+	[OPAL_HALF_UID_BOOLEAN_ACE_UID] =
+		{ 0x00, 0x00, 0x04, 0x0E, 0xff, 0xff, 0xff, 0xff },
+
+	/* ACE DS UIDs */
+	[OPAL_ACE_DS_GET_ALL_UID] =
+		{ 0x00, 0x00, 0x00, 0x08, 0x00, 0x03, 0xfc, 0x00 },
+	[OPAL_ACE_DS_SET_ALL_UID] =
+		{ 0x00, 0x00, 0x00, 0x08, 0x00, 0x03, 0xfc, 0x01 },
+
+	/* special value for omitted optional parameter */
+	[OPAL_UID_HEXFF_UID] =
+		{ 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+};
+
+static uint8_t opal_method[][OPAL_UID_LENGTH] = {
+	[OPAL_PROPERTIES_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x01 },
+	[OPAL_STARTSESSION_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x02 },
+	[OPAL_REVERT_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x02, 0x02 },
+	[OPAL_ACTIVATE_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x02, 0x03 },
+	[OPAL_EGET_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x06 },
+	[OPAL_ESET_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x07 },
+	[OPAL_NEXT_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x08 },
+	[OPAL_EAUTHENTICATE_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0c },
+	[OPAL_GETACL_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0d },
+	[OPAL_GENKEY_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x10 },
+	[OPAL_REVERTSP_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x11 },
+	[OPAL_GET_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x16 },
+	[OPAL_SET_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x17 },
+	[OPAL_AUTHENTICATE_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x1c },
+	[OPAL_RANDOM_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x06, 0x01 },
+	[OPAL_ERASE_METHOD_UID] =
+		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x08, 0x03 },
+};
+
+struct opal_req_item {
+	int type;
+	int len;
+	union {
+		uint8_t byte;
+		uint64_t uint;
+		const uint8_t *bytes;
+	} val;
+};
+
+static int opal_level0_disc_pt(int fd, struct opal_device *dev)
+{
+	struct opal_l0_feat *curr_feat;
+	struct opal_level0_header *header;
+	struct opal_level0_feat_desc *desc;
+	struct opal_l0_disc *disc_data;
+
+	int ret, pos, end, feat_no;
+	uint16_t feat_code;
+	uint8_t *buffer;
+
+	ret = opal_recv(fd, OPAL_DISCOVERY_COMID, dev->resp_buf,
+			sizeof(dev->resp_buf));
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in Level 0 Discovery. Returning early\n");
+		return ret;
+	}
+
+	buffer = dev->resp_buf;
+
+	disc_data = malloc(sizeof(*disc_data));
+	if (disc_data == NULL) {
+		SEDCLI_DEBUG_MSG("Error in creating memory for disc_data\n");
+		return -ENOMEM;
+	}
+	memset(disc_data, 0, sizeof(*disc_data));
+
+	header = (struct opal_level0_header *) buffer;
+	disc_data->rev = be32toh(header->rev);
+
+	/* processing level 0 features */
+	pos = 0;
+	feat_no = 0;
+	pos += sizeof(*header);
+	end = be32toh(header->len);
+
+	while (pos < end) {
+		desc = (struct opal_level0_feat_desc *) (buffer + pos);
+		feat_code = be16toh(desc->code);
+
+		pos += desc->len + 4;
+
+		switch (feat_code) {
+		case OPAL_FEAT_TPER:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_LOCKING:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_GEOMETRY:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_DATASTORE:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_SUM:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_OPALV100:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_OPALV200:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+
+			curr_feat->feat.opalv200.base_comid =
+				be16toh(desc->feat.opalv200.base_comid);
+			curr_feat->feat.opalv200.comid_num =
+				be16toh(desc->feat.opalv200.comid_num);
+			curr_feat->feat.opalv200.admin_lp_auth_num =
+				be16toh(desc->feat.opalv200.admin_lp_auth_num);
+			curr_feat->feat.opalv200.user_lp_auth_num =
+				be16toh(desc->feat.opalv200.user_lp_auth_num);
+
+			disc_data->comid = curr_feat->feat.opalv200.base_comid;
+
+			feat_no++;
+			break;
+		default:
+			break;
+		}
+	}
+	disc_data->feats_size = feat_no;
+	dev->comid = disc_data->comid;
+
+	free(disc_data);
+
+	return 0;
+}
+
+void opal_deinit_pt(struct sed_device *dev)
+{
+	if (dev->fd != 0) {
+		close(dev->fd);
+	}
+
+	if (dev->priv != NULL) {
+		free(dev->priv);
+		dev->priv = NULL;
+	}
+
+	opal_parser_deinit();
+}
+
+int opal_init_pt(struct sed_device *dev, const char *device_path)
+{
+	int ret = 0;
+	struct opal_device *opal_dev = NULL;
+
+	ret = open_dev(device_path);
+	if (ret < 0)
+		return -ENODEV;
+
+	dev->fd = ret;
+
+	/* Initializing the parser list */
+	ret = opal_parser_init();
+	if (ret) {
+		opal_deinit_pt(dev);
+		SEDCLI_DEBUG_MSG("Error in initializing the parser list.\n");
+		return -EINVAL;
+	}
+
+	opal_dev = malloc(sizeof(*opal_dev));
+	if (opal_dev == NULL) {
+		dev->priv = NULL;
+		return -ENOMEM;
+	}
+	dev->priv = opal_dev;
+
+	opal_dev->session.tsn = 0;
+	opal_dev->session.hsn = 0;
+
+	ret = opal_level0_disc_pt(dev->fd, dev->priv);
+	if (ret) {
+		opal_deinit_pt(dev);
+		return -EINVAL;
+	}
+	SEDCLI_DEBUG_PARAM("The device comid is: %u\n", opal_dev->comid);
+
+	return ret;
+}
+
+static void init_req(struct opal_device *dev)
+{
+	struct opal_header *header;
+
+	memset(dev->req_buf, 0, IO_BUFFER_LEN);
+	header = (struct opal_header*) dev->req_buf;
+
+	header->compacket.ext_comid[0] = dev->comid >> 8;
+	header->compacket.ext_comid[1] = dev->comid & 0xFF;
+	header->compacket.ext_comid[2] = 0;
+	header->compacket.ext_comid[3] = 0;
+}
+
+/* Building a Global Locking Range based on the lr value passed by the user */
+static int build_lr(uint8_t *uid, size_t len, uint8_t lr)
+{
+	if (len > OPAL_UID_LENGTH) {
+		SEDCLI_DEBUG_MSG("Length Out of Boundary\n");
+		return -ERANGE;
+	}
+
+	memset(uid, 0, OPAL_UID_LENGTH);
+	memcpy(uid, opal_uid[OPAL_LOCKINGRANGE_GLOBAL_UID], OPAL_UID_LENGTH);
+
+	if (lr == 0)
+		return 0;
+
+	uid[5] = LOCKING_RANGE_NON_GLOBAL;
+	uid[7] = lr;
+
+	return 0;
+}
+
+/* Building a User Locking Range based on the lr value passed by the user */
+static int build_locking_usr(uint8_t *buf, size_t len, uint8_t lr)
+{
+	if(len > OPAL_UID_LENGTH) {
+		SEDCLI_DEBUG_MSG("Length out of boundary \n");
+		return -ERANGE;
+	}
+
+	memcpy(buf, opal_uid[OPAL_USER1_UID], OPAL_UID_LENGTH);
+	buf[7] = lr + 1;
+
+	return 0;
+}
+
+static int opal_rw_lock(struct opal_device *dev, uint8_t *lr_buff, size_t len,
+		uint32_t l_state, uint8_t lr, uint8_t *rl, uint8_t *wl)
+{
+	init_req(dev);
+
+	if (build_lr(lr_buff, len, lr) < 0)
+		return -ERANGE;
+
+	switch (l_state) {
+	case SED_NO_LOCK:
+		*rl = *wl = 0;
+		break;
+	case SED_READ_LOCK:
+		*rl = 1;
+		*wl = 0;
+		break;
+	case SED_WRITE_LOCK:
+		*rl = 0;
+		*wl = 1;
+		break;
+	case SED_READ_WRITE_LOCK:
+		*rl = *wl = 1;
+		break;
+	default:
+		SEDCLI_DEBUG_MSG("Invalid locking state.\n");
+		return OPAL_INVAL_PARAM;
+	}
+
+	return 0;
+}
+
+static void prepare_cmd_init(struct opal_device *dev, uint8_t *buf, size_t buf_len,
+					int *pos, const uint8_t *uid, const uint8_t *method)
+{
+	/* setting up the comid */
+	init_req(dev);
+
+	/* Initializing the command */
+	*pos += append_u8(buf + *pos, buf_len - *pos, OPAL_CALL);
+	*pos += append_bytes(buf + *pos, buf_len - *pos, uid, OPAL_UID_LENGTH);
+	*pos += append_bytes(buf + *pos, buf_len - *pos, method, OPAL_METHOD_LENGTH);
+	*pos += append_u8(buf + *pos, buf_len - *pos, OPAL_STARTLIST);
+}
+
+static void prepare_cmd_end(uint8_t *buf, size_t buf_len, int *pos)
+{
+	/* Ending the command */
+	*pos += append_u8(buf + *pos, buf_len - *pos, OPAL_ENDLIST);
+	*pos += append_u8(buf + *pos, buf_len - *pos, OPAL_ENDOFDATA);
+	*pos += append_u8(buf + *pos, buf_len - *pos, OPAL_STARTLIST);
+	*pos += append_u8(buf + *pos, buf_len - *pos, 0);
+	*pos += append_u8(buf + *pos, buf_len - *pos, 0);
+	*pos += append_u8(buf + *pos, buf_len - *pos, 0);
+	*pos += append_u8(buf + *pos, buf_len - *pos, OPAL_ENDLIST);
+}
+
+static void prepare_cmd_header(struct opal_device *dev, uint8_t *buf, int pos)
+{
+	struct opal_header *header;
+
+	/* Update the request buffer pointer */
+	buf += pos;
+
+	pos += sizeof(*header);
+
+	header = (struct opal_header *)dev->req_buf;
+
+	/* Update the sessions to the headers */
+	header->packet.session.tsn = htobe32(dev->session.tsn);
+	header->packet.session.hsn = htobe32(dev->session.hsn);
+
+	/* Update lengths and padding in Opal packet constructs */
+	header->subpacket.length = htobe32(pos - sizeof(*header));
+	while (pos % 4) {
+		if (pos >= IO_BUFFER_LEN)
+			break;
+		pos += append_u8(buf + (pos % 4), IO_BUFFER_LEN - pos, 0);
+	}
+
+	header->packet.length =
+		htobe32(pos - sizeof(header->compacket) - sizeof(header->packet));
+
+	header->compacket.length = htobe32(pos - sizeof(header->compacket));
+}
+
+static void prepare_req_buf(struct opal_device *dev, struct opal_req_item *data,
+				int data_len, const uint8_t *uid, const uint8_t *method)
+{
+	int i, pos = 0;
+	uint8_t *buf;
+	size_t buf_len;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = IO_BUFFER_LEN - sizeof(struct opal_header);
+
+	prepare_cmd_init(dev, buf, buf_len, &pos, uid, method);
+
+	for (i = 0; i < data_len; i++) {
+		switch (data[i].type) {
+		case OPAL_U8:
+			pos += append_u8(buf + pos, buf_len - pos,
+					data[i].val.byte);
+			break;
+		case OPAL_U64:
+			pos += append_u64(buf + pos, buf_len - pos,
+					data[i].val.uint);
+			break;
+		case OPAL_BYTES:
+			pos += append_bytes(buf + pos, buf_len - pos,
+					data[i].val.bytes, data[i].len);
+			break;
+		}
+	}
+
+	prepare_cmd_end(buf, buf_len, &pos);
+
+	prepare_cmd_header(dev, buf, pos);
+}
+
+static int check_header_lengths(struct opal_device *dev)
+{
+	size_t com_len, pack_len, sub_len;
+	struct opal_header *header;
+
+	header = (struct opal_header *) dev->resp_buf;
+
+	com_len = be32toh(header->compacket.length);
+	pack_len = be32toh(header->packet.length);
+	sub_len = be32toh(header->subpacket.length);
+
+	SEDCLI_DEBUG_PARAM("Response size: compacket: %ld, packet: %ld, subpacket: %ld\n",
+			com_len, pack_len, sub_len);
+
+	if (com_len == 0 || pack_len == 0 || sub_len == 0) {
+		SEDCLI_DEBUG_PARAM("Bad header length. Compacket: %ld, Packet: %ld, "\
+				"Subpacket: %ld\n", com_len, pack_len, sub_len);
+			SEDCLI_DEBUG_MSG("The response can't be parsed.\n");
+		return -EINVAL;
+	}
+
+	return sub_len;
+}
+
+
+static bool resp_token_match(const struct opal_token *token, uint8_t match)
+{
+	if (token == NULL || token->type != OPAL_DTA_TOKENID_TOKEN ||
+	    token->pos[0] != match)
+		return false;
+
+	return true;
+}
+
+static uint8_t check_resp_status(struct opal_parsed_payload *payload)
+{
+	struct opal_token *token;
+	int num = payload->len;
+
+	token = payload->tokens[0];
+	if (resp_token_match(token, OPAL_ENDOFSESSION))
+		return 0;
+
+	if (num < 5)
+		return DTAERROR_NO_METHOD_STATUS;
+
+	token = payload->tokens[num - 5];
+	if (!resp_token_match(token, OPAL_STARTLIST))
+		return DTAERROR_NO_METHOD_STATUS;
+
+	token = payload->tokens[num - 1];
+	if (!resp_token_match(token, OPAL_ENDLIST))
+		return DTAERROR_NO_METHOD_STATUS;
+
+	return payload->tokens[num - 4]->vals.uint;
+}
+
+static int opal_snd_rcv_cmd_parse_chk(int fd, struct opal_device *dev, bool end_sessn)
+{
+	uint8_t *data_buf;
+	int ret = 0, data_buf_len = 0,subpacket_len = 0;
+
+	/* Send command and receive results */
+	ret = opal_send_recv(fd, dev->comid, dev->req_buf,
+		sizeof(dev->req_buf), dev->resp_buf, sizeof(dev->resp_buf));
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in NVMe passthrough ops\n");
+		return ret;
+	}
+
+	subpacket_len = check_header_lengths(dev);
+	if (ret < 0)
+		return subpacket_len;
+
+	if (end_sessn) {
+		dev->session.tsn = 0;
+		dev->session.hsn = 0;
+	}
+
+	data_buf = dev->resp_buf + sizeof(struct opal_header);
+	data_buf_len = subpacket_len;
+
+	ret = opal_parse_data_payload(data_buf, data_buf_len, &dev->payload);
+	if (ret == -EINVAL) {
+		SEDCLI_DEBUG_MSG("Error in parsing the response\n");
+		return ret;
+	}
+
+	ret = check_resp_status(&dev->payload);
+
+	return ret;
+}
+
+static uint8_t get_payload_string(struct opal_device *dev, uint8_t num)
+{
+	uint8_t jmp;
+
+	if (dev->payload.tokens[num]->type != OPAL_DTA_TOKENID_BYTESTRING) {
+		SEDCLI_DEBUG_MSG("Token is not a byte string.\n");
+		return 0;
+	}
+
+	switch (dev->payload.tokens[num]->width) {
+		case OPAL_WIDTH_TINY:
+		case OPAL_WIDTH_SHORT:
+			jmp = 1;
+			break;
+		case OPAL_WIDTH_MEDIUM:
+			jmp = 2;
+			break;
+		case OPAL_WIDTH_LONG:
+			jmp = 4;
+			break;
+		default:
+			SEDCLI_DEBUG_MSG("Token has invalid width and can't be parsed\n");
+			return 0;
+	}
+
+	return jmp;
+}
+
+static struct opal_req_item start_anybody_sess_cmd[] = {
+	{ .type = OPAL_U64, .len = 4, .val = { .uint = GENERIC_HOST_SESSION_NUM } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = opal_uid[OPAL_ADMIN_SP_UID] } }, /*Admin SP | Locking SP*/
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
+};
+
+static int opal_start_anybody_session(int fd, struct opal_device *dev, int sp)
+{
+	int ret = 0;
+
+	start_anybody_sess_cmd[1].val.bytes = (sp == OPAL_LOCKING_SP_UID ? opal_uid[OPAL_LOCKING_SP_UID] : opal_uid[OPAL_ADMIN_SP_UID] );
+
+	prepare_req_buf(dev, start_anybody_sess_cmd, ARRAY_SIZE(start_anybody_sess_cmd),
+			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	if (ret == OPAL_SUCCESS) {
+		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
+		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
+	} else {
+		SEDCLI_DEBUG_MSG("Response parsed incorrectly.\n");
+		return ret;
+	}
+
+	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
+		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
+		return -EINVAL;
+	}
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item start_sess_cmd[] = {
+	{ .type = OPAL_U64, .len = 8, .val = { .uint = GENERIC_HOST_SESSION_NUM } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = NULL } }, /*Admin SP | Locking SP*/
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } },
+	{ .type = OPAL_BYTES, .len = 1, .val = { .bytes = NULL } }, /* Host Challenge -> key; key_len */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 3 } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = NULL } }, /* Host Signing Authority: MSID, SID, PSID */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_start_generic_session(int fd, struct opal_device *dev, int sp, int auth, const struct sed_key *key)
+{
+	int ret = 0;
+
+	/* SP */
+	start_sess_cmd[1].val.bytes = opal_uid[sp];
+	if (auth != OPAL_ANYBODY_UID) {
+		/* Host Challenge */
+		start_sess_cmd[5].val.bytes = key->key;
+		start_sess_cmd[5].len = key->len;
+
+		/* Host Signing Authority */
+		start_sess_cmd[9].val.bytes = opal_uid[auth];
+	}
+
+	prepare_req_buf(dev, start_sess_cmd, ARRAY_SIZE(start_sess_cmd),
+			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	if (ret == OPAL_SUCCESS) {
+		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
+		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
+	} else {
+		SEDCLI_DEBUG_MSG("Error in Starting a SIDASP session\n");
+		return ret;
+	}
+
+	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
+		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
+		return -EINVAL;
+	}
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_start_sid_asp_session(int fd, struct opal_device *dev,
+		uint8_t *msid_pin, size_t msid_pin_len)
+{
+	struct sed_key key;
+
+	if (msid_pin_len > sizeof(key.key)) {
+		SEDCLI_DEBUG_MSG("MSID_PIN Length Out of Boundary\n");
+		return -ERANGE;
+	}
+
+	sed_key_init(&key, (char *) msid_pin, msid_pin_len);
+
+	return opal_start_generic_session(fd, dev, OPAL_ADMIN_SP_UID, OPAL_SID_UID, &key);
+}
+
+static int opal_start_admin1_lsp_session(int fd, struct opal_device *dev,
+		const struct sed_key *key)
+{
+	return opal_start_generic_session(fd, dev, OPAL_LOCKING_SP_UID,
+			OPAL_ADMIN1_UID, key);
+}
+
+static struct opal_req_item start_auth_session_cmd[] = {
+	{ .type = OPAL_U64, .len = 8, .val = { .uint = GENERIC_HOST_SESSION_NUM } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = opal_uid[OPAL_LOCKING_SP_UID] } }, /*Admin SP | Locking SP*/
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } },
+	{ .type = OPAL_BYTES, .len = 1, .val = { .bytes = NULL } }, /* Host Challenge -> key; key_len */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 3 } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = NULL } }, /* Host Signing Authority: MSID, SID, PSID */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_start_auth_session(int fd, struct opal_device *dev,
+		uint32_t sum, uint8_t lr, uint32_t who, const struct sed_key *key)
+{
+	uint8_t lk_ulk_usr[OPAL_UID_LENGTH];
+	int ret = 0;
+
+	if (sum) {
+		ret = build_locking_usr(lk_ulk_usr, sizeof(lk_ulk_usr), lr);
+	} else if (who != OPAL_ADMIN1 && !sum) {
+		ret = build_locking_usr(lk_ulk_usr, sizeof(lk_ulk_usr), who - 1);
+	} else {
+		memcpy(lk_ulk_usr, opal_uid[OPAL_ADMIN1_UID], OPAL_UID_LENGTH);
+	}
+
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in building Locking Range for the given user\n");
+		return ret;
+	}
+
+	start_auth_session_cmd[5].val.bytes = key->key;
+	start_auth_session_cmd[5].len = key->len;
+
+	start_auth_session_cmd[9].val.bytes = lk_ulk_usr;
+	start_auth_session_cmd[9].len = OPAL_UID_LENGTH;
+
+	prepare_req_buf(dev, start_auth_session_cmd, ARRAY_SIZE(start_auth_session_cmd),
+			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	if (ret == OPAL_SUCCESS) {
+		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
+		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
+	} else {
+		SEDCLI_DEBUG_MSG("Error in Starting a auth session\n");
+		return ret;
+	}
+
+	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
+		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
+		return -EINVAL;
+	}
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_end_session(int fd, struct opal_device *dev)
+{
+	uint8_t *buf;
+	int pos = 0, ret = 0;
+	size_t buf_len;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+
+	init_req(dev);
+
+	pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDOFSESSION);
+
+	prepare_cmd_end(buf, buf_len, &pos);
+
+	prepare_cmd_header(dev, buf, pos);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, true);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_revert_tper_local(int fd, struct opal_device *dev)
+{
+	int ret = 0;
+
+	prepare_req_buf(dev, NULL, 0, opal_uid[OPAL_ADMIN_SP_UID],
+			opal_method[OPAL_REVERT_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item opal_generic_get_column_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTCOLUMN } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* start column */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDCOLUMN } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* end column */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+};
+
+static int opal_generic_get_column(int fd, struct opal_device *dev, const uint8_t *uid,
+				   uint64_t start_col, uint64_t end_col)
+{
+	opal_generic_get_column_cmd[3].val.uint = start_col;
+	opal_generic_get_column_cmd[7].val.uint = end_col;
+
+	prepare_req_buf(dev, opal_generic_get_column_cmd, ARRAY_SIZE(opal_generic_get_column_cmd),
+			uid, opal_method[OPAL_GET_METHOD_UID]);
+
+	return opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+}
+
+static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, size_t *key_len)
+{
+	uint8_t jmp;
+	int ret = 0;
+
+	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_C_PIN_MSID_UID], OPAL_PIN, OPAL_PIN);
+	if (ret == OPAL_SUCCESS) {
+		jmp = get_payload_string(dev, 4);
+		*key_len = dev->payload.tokens[4]->len - jmp;
+		memcpy(key, dev->payload.tokens[4]->pos + jmp, *key_len);
+	} else {
+		SEDCLI_DEBUG_MSG("There is an error in parsing\n");
+		return ret;
+	}
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item set_sid_pwd_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } }, /* Values */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 3 } }, /* PIN */
+	{ .type = OPAL_BYTES, .len = 1, .val = { .bytes = NULL } }, /* new key and it's length */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_set_sid_pwd(int fd, struct opal_device *dev, const struct sed_key *key)
+{
+	int ret = 0;
+
+	/* Update the password */
+	set_sid_pwd_cmd[5].len = key->len;
+	set_sid_pwd_cmd[5].val.bytes = key->key;
+
+	prepare_req_buf(dev, set_sid_pwd_cmd, ARRAY_SIZE(set_sid_pwd_cmd),
+			opal_uid[OPAL_C_PIN_SID_UID], opal_method[OPAL_SET_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_get_lsp_lifecycle(int fd, struct opal_device *dev)
+{
+	uint8_t lc_status;
+	int ret = 0;
+
+	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_SP_UID],
+				      OPAL_LIFECYCLE, OPAL_LIFECYCLE);
+
+	lc_status = dev->payload.tokens[4]->vals.uint;
+	if (lc_status != OPAL_MANUFACTURED_INACTIVE) {
+		SEDCLI_DEBUG_MSG("Couldn't determine the status of the Lifecycle state\n");
+		return -ENODEV;
+	}
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_activate_lsp(int fd, struct opal_device *dev, bool sum, uint8_t *lr, int num_lrs)
+{
+	int pos = 0, ret = 0;
+	size_t buf_len;
+	uint8_t usr_lr[OPAL_UID_LENGTH], *buf;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+
+	prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[OPAL_LOCKING_SP_UID],
+			opal_method[OPAL_ACTIVATE_METHOD_UID]);
+
+	if (sum) {
+		if (sizeof(usr_lr) > OPAL_UID_LENGTH) {
+			SEDCLI_DEBUG_MSG("Length Out of Boundary\n");
+			return -ERANGE;
+		}
+		memcpy(usr_lr, opal_uid[OPAL_LOCKINGRANGE_GLOBAL_UID],
+				OPAL_UID_LENGTH);
+		if (lr[0] == 0)
+			return 0;
+		usr_lr[5] = LOCKING_RANGE_NON_GLOBAL;
+		usr_lr[7] = lr[0];
+
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTNAME);
+		pos += append_u8(buf + pos, buf_len - pos, 0x83);
+		pos += append_u8(buf + pos, buf_len - pos, 6);
+		pos += append_u8(buf + pos, buf_len - pos, 0);
+		pos += append_u8(buf + pos, buf_len - pos, 0);
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTLIST);
+		pos += append_bytes(buf + pos, buf_len - pos, usr_lr,
+				OPAL_UID_LENGTH);
+		for (int i = 1; i < num_lrs; i++) {
+			usr_lr[7] = lr[i];
+			pos += append_bytes(buf + pos, buf_len - pos, usr_lr,
+					OPAL_UID_LENGTH);
+		}
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDLIST);
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDNAME);
+	}
+
+	prepare_cmd_end(buf, buf_len, &pos);
+
+	prepare_cmd_header(dev, buf, pos);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item add_usr_to_lr_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 3 } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_BYTES, .len = 4, .val = { .bytes = opal_uid[OPAL_HALF_UID_AUTHORITY_OBJ_REF_UID] } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = NULL } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_BYTES, .len = 4, .val = { .bytes = opal_uid[OPAL_HALF_UID_AUTHORITY_OBJ_REF_UID] } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = NULL } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_BYTES, .len = 4, .val = { .bytes = opal_uid[OPAL_HALF_UID_BOOLEAN_ACE_UID] } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int add_usr_to_lr(int fd, struct opal_device *dev, uint32_t l_state, uint8_t lr, uint32_t who)
+{
+	uint8_t lr_buff[OPAL_UID_LENGTH], usr_uid[OPAL_UID_LENGTH];
+	int ret = 0;
+
+	memcpy(lr_buff, opal_uid[OPAL_LOCKINGRANGE_ACE_RDLOCKED_UID],
+			OPAL_UID_LENGTH);
+
+	if (l_state == OPAL_RW) {
+		memcpy(lr_buff, opal_uid[OPAL_LOCKINGRANGE_ACE_WRLOCKED_UID],
+				OPAL_UID_LENGTH);
+	}
+	lr_buff[7] = lr;
+
+	memcpy(usr_uid, opal_uid[OPAL_USER1_UID], OPAL_UID_LENGTH);
+	usr_uid[7] = who;
+
+	add_usr_to_lr_cmd[8].val.bytes = usr_uid;
+	add_usr_to_lr_cmd[12].val.bytes = usr_uid;
+
+	prepare_req_buf(dev, add_usr_to_lr_cmd, ARRAY_SIZE(add_usr_to_lr_cmd),
+			lr_buff, opal_method[OPAL_SET_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item internal_activate_usr_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_VALUES } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 5 } }, /* Enable */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_TRUE } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_internal_activate_usr(int fd, struct opal_device *dev, uint32_t who)
+{
+	uint8_t uid[OPAL_UID_LENGTH];
+	int ret = 0;
+
+	memcpy(uid, opal_uid[OPAL_USER1_UID], OPAL_UID_LENGTH);
+	uid[7] = who;
+
+	prepare_req_buf(dev, internal_activate_usr_cmd, ARRAY_SIZE(internal_activate_usr_cmd),
+			uid, opal_method[OPAL_SET_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item generic_enable_disable_global_lr_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_VALUES } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_READLOCKENABLED } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* Read Lock Enabled */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_WRITELOCKENABLED } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* Write Lock Enabled*/
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_READLOCKED } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* Read Locked */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_WRITELOCKED } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* Write Locked */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static void generic_enable_disable_global_lr(struct opal_device *dev,
+		const uint8_t *uid, bool rle, bool wle, bool rl, bool wl)
+{
+	generic_enable_disable_global_lr_cmd[5].val.byte = rle;
+	generic_enable_disable_global_lr_cmd[9].val.byte = wle;
+	generic_enable_disable_global_lr_cmd[13].val.byte = rl;
+	generic_enable_disable_global_lr_cmd[17].val.byte = wl;
+
+	prepare_req_buf(dev, generic_enable_disable_global_lr_cmd, ARRAY_SIZE(generic_enable_disable_global_lr_cmd),
+			uid, opal_method[OPAL_SET_METHOD_UID]);
+}
+
+int opal_setup_global_range_pt(struct sed_device *dev, const struct sed_key *key)
+{
+	int status;
+	struct opal_device *opal_dev;
+
+	opal_dev = dev->priv;
+
+	status = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
+
+	/* Read Locking Enabled*/
+	generic_enable_disable_global_lr_cmd[5].val.byte = true;
+	/* Write Locking Enabled*/
+	generic_enable_disable_global_lr_cmd[9].val.byte = true;
+
+	prepare_req_buf(opal_dev, generic_enable_disable_global_lr_cmd, ARRAY_SIZE(generic_enable_disable_global_lr_cmd),
+			opal_uid[OPAL_LOCKINGRANGE_GLOBAL_UID], opal_method[OPAL_SET_METHOD_UID]);
+
+	status = opal_snd_rcv_cmd_parse_chk(dev->fd, opal_dev, false);
+
+	opal_put_all_tokens(opal_dev->payload.tokens, &opal_dev->payload.len);
+
+	opal_end_session(dev->fd, opal_dev);
+
+	return status;
+}
+
+static struct opal_req_item setup_locking_range_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_VALUES } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_RANGESTART } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* Range Start */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_RANGELENGTH } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* Range Length */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_READLOCKENABLED } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* Read Lock Enabled */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_WRITELOCKENABLED } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* Write Lock Enabled */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_setup_locking_range(int fd, struct opal_device *dev, uint8_t lr,
+		uint64_t range_start, uint64_t range_length, uint32_t RLE, uint32_t WLE)
+{
+	uint8_t uid[OPAL_UID_LENGTH];
+	int ret = 0;
+
+	ret = build_lr(uid, sizeof(uid), lr);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in building the locking range\n");
+		return ret;
+	}
+
+	if (lr == 0) {
+		generic_enable_disable_global_lr(dev, uid, !!RLE, !!WLE, 0, 0);
+	} else {
+		setup_locking_range_cmd[5].val.uint = range_start;
+		setup_locking_range_cmd[9].val.uint = range_length;
+		setup_locking_range_cmd[13].val.uint = !!RLE;
+		setup_locking_range_cmd[17].val.uint = !!WLE;
+
+		prepare_req_buf(dev, setup_locking_range_cmd, ARRAY_SIZE(setup_locking_range_cmd),
+				uid, opal_method[OPAL_SET_METHOD_UID]);
+	}
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_lock_unlock_sum(int fd, struct opal_device *dev,
+		uint32_t locktype, uint8_t lr)
+{
+	uint8_t lr_buff[OPAL_UID_LENGTH];
+	uint8_t read_lock = 1, write_lock = 1;
+	int ret = 0;
+
+	ret = opal_rw_lock(dev, lr_buff, sizeof(lr_buff), locktype, lr, &read_lock, &write_lock);
+	if (ret)
+		return ret;
+
+	generic_enable_disable_global_lr(dev, lr_buff, 1, 1,
+			read_lock, write_lock);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item opal_lock_unlock_no_sum_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_VALUES } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_READLOCKED } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* Read Locked */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_WRITELOCKED } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* Write Locked */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_lock_unlock_no_sum(int fd, struct opal_device *dev,
+		uint32_t lock_type, uint8_t lr)
+{
+	uint8_t lr_buff[OPAL_UID_LENGTH];
+	uint8_t read_lock = 1, write_lock = 1;
+	int ret = 0;
+
+	ret = opal_rw_lock(dev, lr_buff, sizeof(lr_buff), lock_type, lr,
+			&read_lock, &write_lock);
+	if (ret)
+		return ret;
+
+	opal_lock_unlock_no_sum_cmd[5].val.byte = read_lock;
+	opal_lock_unlock_no_sum_cmd[9].val.byte = write_lock;
+
+	prepare_req_buf(dev, opal_lock_unlock_no_sum_cmd, ARRAY_SIZE(opal_lock_unlock_no_sum_cmd),
+			lr_buff, opal_method[OPAL_SET_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item generic_pwd_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_VALUES } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_PIN } },
+	{ .type = OPAL_BYTES, .len = 0, .val = { .bytes = NULL } }, /* The new pwd */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static void generic_pwd_func(struct opal_device *dev, const struct sed_key *key,
+		const uint8_t *uid)
+{
+	generic_pwd_cmd[5].val.bytes = key->key;
+	generic_pwd_cmd[5].len = key->len;
+
+	prepare_req_buf(dev, generic_pwd_cmd, ARRAY_SIZE(generic_pwd_cmd),
+			uid, opal_method[OPAL_SET_METHOD_UID]);
+}
+
+static int set_new_pwd(int fd, struct opal_device *dev, uint32_t who, uint32_t sum, uint8_t lr, const struct sed_key *new_key)
+{
+	uint8_t uid[OPAL_UID_LENGTH];
+	int ret = 0;
+
+	memcpy(uid, opal_uid[OPAL_C_PIN_ADMIN1_UID], OPAL_UID_LENGTH);
+
+	if (who != OPAL_ADMIN1) {
+		uid[5] = 0x03;
+		if (sum) {
+			uid[7] = lr + 1;
+		} else {
+			uid[7] = who;
+		}
+	}
+
+	generic_pwd_func(dev, new_key, uid);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static struct opal_req_item opal_set_mbr_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_VALUES } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } }, /* MBR done or not */
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_set_mbr(int fd, struct opal_device *dev, uint8_t val, uint8_t en_disable)
+{
+	int ret = 0;
+
+	opal_set_mbr_cmd[4].val.byte = val;
+	opal_set_mbr_cmd[5].val.byte = en_disable;
+
+	prepare_req_buf(dev, opal_set_mbr_cmd, ARRAY_SIZE(opal_set_mbr_cmd),
+			opal_uid[OPAL_MBRCONTROL_UID], opal_method[OPAL_SET_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_set_mbr_en_disable(int fd, struct opal_device *dev, uint8_t en_disable)
+{
+	return opal_set_mbr(fd, dev, OPAL_MBRENABLE, en_disable);
+}
+
+static int opal_erase_lr(int fd, struct opal_device *dev, uint8_t lr)
+{
+	int ret = 0;
+	uint8_t uid[OPAL_UID_LENGTH];
+
+	if (build_lr(uid, sizeof(uid), lr) < 0)
+		return -ERANGE;
+
+	prepare_req_buf(dev, NULL, 0, uid, opal_method[OPAL_ERASE_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int get_table_length(int fd, struct opal_device *dev, enum opaluid table)
+{
+	uint8_t uid[OPAL_UID_LENGTH];
+	const int half = OPAL_UID_LENGTH/2;
+
+	memcpy(uid, opal_uid[OPAL_TABLE_TABLE_UID], half);
+	memcpy(uid + half, opal_uid[table], half);
+
+	return opal_generic_get_column(fd, dev, uid, OPAL_TABLE_ROW, OPAL_TABLE_ROW);
+}
+
+/*
+ * ENDLIST, ENDOFDATA, STARTLIST, 0, 0, 0 and ENDLIST.
+ * These 7 bytes are always required to conclude the opal command.
+ */
+#define CMD_END_BYTES_NUM 7
+
+static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *data, uint64_t offset, uint64_t size)
+{
+	uint8_t *buf;
+	uint64_t len = 0, index = 0;
+	int ret = 0, pos = 0;
+	size_t buf_len;
+
+	if (size == 0)
+		return 0;
+
+	ret = get_table_length(fd, dev, OPAL_DATASTORE_UID);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error retrieving table length\n");
+		return ret;
+	}
+
+	len = dev->payload.tokens[4]->vals.uint;
+	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
+
+	if (size > len || offset > len - size) {
+		SEDCLI_DEBUG_PARAM("The data doesn't fit in the datastore table: Can't fit "\
+				"%lu in %lu\n", offset + size, len);
+		return -ENOSPC;
+	}
+
+	while (index < size) {
+
+		buf = dev->req_buf + sizeof(struct opal_header);
+		buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+
+		prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[OPAL_DATASTORE_UID],
+				 opal_method[OPAL_SET_METHOD_UID]);
+
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTNAME);
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_WHERE);
+		pos += append_u64(buf + pos, buf_len - pos, offset + index);
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDNAME);
+
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTNAME);
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_VALUES);
+
+		/*
+		 * The append_bytes used below, dependng upon the len either uses
+		 * short_atom_bytes_header (returns 1) or medium_atom_bytes_header
+		 * (returns 2). Hence we consider the MAX of the two i.e, 2.
+		 *
+		 * The 1 byte is for the following ENDNAME token.
+		 */
+		uint64_t remaining_buff_size = buf_len - (pos + 2 + 1 + CMD_END_BYTES_NUM);
+
+		len = MIN(remaining_buff_size, (size - index));
+
+		pos += append_bytes(buf + pos, buf_len - pos, data, len);
+
+		pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDNAME);
+		prepare_cmd_end(buf, buf_len, &pos);
+
+		prepare_cmd_header(dev, buf, pos);
+
+		ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+		opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+		if (ret)
+			break;
+
+		index += len;
+		pos = 0;
+	}
+
+	return ret;
+}
+
+static struct opal_req_item opal_read_datastr_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTROW } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* Start Reading from */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDROW } },
+	{ .type = OPAL_U64, .len = 1, .val = { .uint = 0 } }, /* End reading here */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+};
+
+/*
+ * IO_BUFFER_LENGTH = 2048
+ * sizeof(header) = 56
+ * No. of Token Bytes in the Response = 11
+ * MAX size of data that can be carried in response buffer
+ * at a time is : 2048 - (56 + 11) = 1981 = 0x7BD.
+ */
+#define OPAL_MAX_READ_TABLE (0x7BD)
+
+static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uint64_t offset, uint64_t size)
+{
+	int ret = 0;
+	uint64_t len = 0, index = 0;
+	uint8_t jmp;
+	size_t data_len;
+
+	if (size == 0)
+		return 0;
+
+	ret = get_table_length(fd, dev, OPAL_DATASTORE_UID);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error retrieving table length\n");
+		return ret;
+	}
+
+	len = dev->payload.tokens[4]->vals.uint;
+	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
+
+	if (size > len || offset > len - size) {
+		SEDCLI_DEBUG_PARAM("Read size/offset exceeding the datastore table limits"\
+				"%lu in %lu\n", offset + size, len);
+		return -EINVAL;
+	}
+
+	while (index < size) {
+		opal_read_datastr_cmd[3].val.uint = index + offset;
+
+		len = MIN(OPAL_MAX_READ_TABLE, (size - index));
+		opal_read_datastr_cmd[7].val.uint = index + offset + len;
+
+		prepare_req_buf(dev, opal_read_datastr_cmd, ARRAY_SIZE(opal_read_datastr_cmd),
+				opal_uid[OPAL_DATASTORE_UID], opal_method[OPAL_GET_METHOD_UID]);
+
+		ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+		/* Reading the Data from the response */
+		jmp = get_payload_string(dev, 1);
+		data_len = dev->payload.tokens[1]->len - jmp;
+		memcpy(data + index, dev->payload.tokens[1]->pos + jmp, data_len);
+
+		opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+		if (ret)
+			break;
+
+		index += len;
+	}
+
+	return ret;
+}
+
+static int list_lr(int fd, struct opal_device *dev)
+{
+	int ret;
+	uint64_t num_ranges;
+	uint8_t uid[OPAL_UID_LENGTH];
+
+	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_INFO_TABLE_UID],
+				OPAL_MAXRANGES, OPAL_MAXRANGES);
+	if (ret)
+		return ret;
+
+	num_ranges = dev->payload.tokens[4]->vals.uint + 1;
+	SEDCLI_DEBUG_PARAM("The number of ranges discovered is: %ld\n",
+			num_ranges);
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	for (int i = 0; i < num_ranges; i++) {
+		ret = build_lr(uid, sizeof(uid), i);
+		if (ret) {
+			SEDCLI_DEBUG_MSG("Error building locking range\n");
+			return ret;
+		}
+
+		ret = opal_generic_get_column(fd, dev, uid, OPAL_RANGESTART,
+					OPAL_WRITELOCKED);
+		if (ret)
+			return ret;
+
+		printf("\nLR: %d begins: %ld for: %ld\n", i,
+				dev->payload.tokens[4]->vals.uint,
+				dev->payload.tokens[8]->vals.uint);
+		printf("\tRLKEnabled  = %s\n", dev->payload.tokens[12]->vals.uint ?
+				"YES" : "NO");
+		printf("\tWLKEnabled  = %s\n", dev->payload.tokens[16]->vals.uint ?
+				"YES" : "NO");
+		printf("\tReadLocked  = %s\n", dev->payload.tokens[20]->vals.uint ?
+				"YES" : "NO");
+		printf("\tWriteLocked = %s\n", dev->payload.tokens[24]->vals.uint ?
+				"YES" : "NO");
+		opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+	}
+
+	return 0;
+}
+
+int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key)
+{
+	struct opal_device *opal_dev;
+	int ret = 0;
+	size_t msid_pin_len = 0;
+	uint8_t msid_pin[SED_MAX_KEY_LEN];
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("Must Provide a password.\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	memset(msid_pin, 0, sizeof(msid_pin));
+
+	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_get_msid(dev->fd, opal_dev, msid_pin, &msid_pin_len);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_end_session(dev->fd, opal_dev);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_start_sid_asp_session(dev->fd, opal_dev, msid_pin, msid_pin_len);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_set_sid_pwd(dev->fd, opal_dev, key);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_reverttper_pt(struct sed_device *dev, const struct sed_key *key,
+		bool psid)
+{
+	struct opal_device *opal_dev;
+	int ret = 0, auth;
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("Must Provide a password.\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	auth = psid ? OPAL_PSID_UID : OPAL_SID_UID;
+
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID, auth,
+			key);
+	if (ret) {
+		opal_end_session(dev->fd, opal_dev);
+		return ret;
+	}
+
+	return opal_revert_tper_local(dev->fd, opal_dev);
+}
+
+int opal_activate_lsp_pt(struct sed_device *dev, const struct sed_key *key,
+		char *lr_str, bool sum)
+{
+	int num_lrs = 0, ret = 0;
+	char *num, *errchk;
+	size_t count = 0;
+	unsigned long parsed;
+	uint8_t lr[OPAL_MAX_LRS];
+	struct opal_device *opal_dev;
+
+	if (key == NULL || (sum && lr_str)) {
+		SEDCLI_DEBUG_MSG("Must Provide a password, and a LR string "\
+				 " if SUM \n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+	SEDCLI_DEBUG_PARAM("Sum is %d\n", sum);
+
+	memset(lr, 0, sizeof(lr));
+
+	if (!lr_str) {
+		num_lrs = 1;
+	} else {
+		num = strtok(lr_str, ",");
+		while (num != NULL && count < OPAL_MAX_LRS) {
+			parsed = strtoul(num, &errchk, 10);
+			if (errchk == num)
+				continue;
+			lr[count] = parsed;
+			SEDCLI_DEBUG_PARAM("added %lu to lr at index %zu\n",
+					parsed, count);
+			num = strtok(NULL, ",");
+			count++;
+		}
+		num_lrs = count;
+	}
+
+	if (!num_lrs || num_lrs > OPAL_MAX_LRS)
+		return  -EINVAL;
+
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID, OPAL_SID_UID,
+			key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_get_lsp_lifecycle(dev->fd, opal_dev);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_activate_lsp(dev->fd, opal_dev, sum, lr, num_lrs);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+		const char *usr, enum SED_LOCK_TYPE lock_type, uint8_t lr)
+{
+	struct sed_key disk_key;
+	int ret = 0;
+	struct opal_device *opal_dev;
+	uint32_t who;
+
+	if (lock_type > SED_READ_WRITE_LOCK || lock_type < SED_NO_LOCK || key == NULL
+		|| key_len == 0 || usr == NULL) {
+		SEDCLI_DEBUG_MSG("Need to supply user, lock type and password!\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	if (sed_get_user(usr, &who)) {
+		return -EINVAL;
+	}
+
+	ret = sed_key_init(&disk_key, key, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = add_usr_to_lr(dev->fd, opal_dev, lock_type, lr, who);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_activate_usr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+		const char *user)
+{
+	struct sed_key disk_key;
+	int ret = 0;
+	struct opal_device *opal_dev;
+	uint32_t who;
+
+	if (user == NULL || key == NULL) {
+		SEDCLI_DEBUG_PARAM("Invalid arguments for %s, need to provide "\
+				"password and user.\n", __func__);
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	if (sed_get_user(user, &who)) {
+		return -EINVAL;
+	}
+
+	if (who == OPAL_ADMIN1) {
+		SEDCLI_DEBUG_MSG("Opal Admin is already activated by default!\n");
+		return -EINVAL;
+	}
+
+	if(who > OPAL_USER9) {
+		SEDCLI_DEBUG_MSG("Not a valid user.!!!\n");
+		return -EINVAL;
+	}
+
+	ret = sed_key_init(&disk_key, key, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_internal_activate_usr(dev->fd, opal_dev, who);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+		const char *user, uint8_t lr, size_t range_start,
+		size_t range_length, bool sum, bool RLE, bool WLE)
+
+{
+	struct sed_key disk_key;
+	struct opal_device *opal_dev;
+	uint32_t who;
+	int ret = 0;
+
+	if (range_start == ~0 || range_length == ~0 || (!sum && user == NULL) ||
+			key == NULL) {
+		SEDCLI_DEBUG_MSG("Incorrect parameters, please try again\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	if (!sum) {
+		if (sed_get_user(user, &who)) {
+			return -EINVAL;
+		}
+	}
+
+	ret = sed_key_init(&disk_key, key, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_auth_session(dev->fd, opal_dev, sum, lr, who, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_setup_locking_range(dev->fd, opal_dev, lr, range_start, range_length, RLE, WLE);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_lock_unlock_pt(struct sed_device *dev, const struct sed_key *key,
+		enum SED_LOCK_TYPE lock_type)
+{
+	int ret = 0;
+	struct opal_device *opal_dev;
+
+	if (lock_type > SED_READ_WRITE_LOCK || lock_type < SED_NO_LOCK || key == NULL) {
+		SEDCLI_DEBUG_MSG("Need to supply lock type and password!\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	ret = opal_start_auth_session(dev->fd, opal_dev, false, 0, SED_ADMIN1, key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_lock_unlock_no_sum(dev->fd, opal_dev, lock_type, 0);
+
+end_sessn:
+
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+
+int opal_set_pwd_pt(struct sed_device *dev, const struct sed_key *old_key,
+		const struct sed_key *new_key)
+{
+	struct opal_device *opal_dev;
+	int ret = 0;
+
+	if (old_key == NULL || old_key->len == 0 || new_key == NULL ||
+			new_key->len == 0) {
+		SEDCLI_DEBUG_MSG("Invalid arguments, please try again\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	ret = opal_start_auth_session(dev->fd, opal_dev, 0, 0, SED_ADMIN1, old_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = set_new_pwd(dev->fd, opal_dev, SED_ADMIN1, 0, 0, new_key);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_shadow_mbr_pt(struct sed_device *dev, const char *password,
+		uint8_t key_len, bool mbr)
+{
+	struct sed_key disk_key;
+	int ret = 0;
+	uint8_t en_dis, enable_disable;
+	struct opal_device *opal_dev;
+
+	if (password == NULL) {
+		SEDCLI_DEBUG_MSG("Need ADMIN1 password for mbr shadow "\
+				"enable/disable\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	if (mbr) {
+		enable_disable = OPAL_MBR_ENABLE;
+	} else {
+		enable_disable = OPAL_MBR_DISABLE;
+	}
+
+	en_dis = (enable_disable == OPAL_MBR_ENABLE) ? OPAL_TRUE :
+		OPAL_FALSE;
+
+	ret = sed_key_init(&disk_key, password, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_set_mbr(dev->fd, opal_dev, OPAL_MBRDONE, en_dis);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_end_session(dev->fd, opal_dev);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_set_mbr_en_disable(dev->fd, opal_dev, en_dis);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_eraselr_pt(struct sed_device *dev, const char *password,
+		uint8_t key_len, const char *user, const uint8_t lr, bool sum)
+{
+	struct sed_key disk_key;
+	struct opal_device *opal_dev;
+	uint32_t who;
+	int ret = 0;
+
+	if ((!sum && user == NULL) || password == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide the password, user and locking "\
+				"range to be erased.\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	if (!sum) {
+		if (sed_get_user(user, &who)) {
+			return -EINVAL;
+		}
+	}
+
+	ret = sed_key_init(&disk_key, password, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_auth_session(dev->fd, opal_dev, sum, lr, who, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_erase_lr(dev->fd, opal_dev, lr);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_ds_admin_write(struct sed_device *dev, const char *key, uint8_t key_len, const void *from, uint32_t size, uint32_t offset)
+{
+	int ret = 0;
+	struct sed_key disk_key;
+	struct opal_device *opal_dev;
+
+	if (key == NULL || from == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide the password and a valid source pointer\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	ret = sed_key_init(&disk_key, key, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret) {
+		goto end_sessn;
+	}
+
+	ret = opal_write_datastr(dev->fd, opal_dev, from, offset, size);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_ds_admin_read(struct sed_device *dev, const char *key, uint8_t key_len, uint8_t *to, uint32_t size, uint32_t offset)
+{
+	int ret = 0;
+	struct sed_key disk_key;
+	struct opal_device *opal_dev;
+
+	if (key == NULL || to == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide the password and a valid destination pointer\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	ret = sed_key_init(&disk_key, key, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret) {
+		goto end_sessn;
+	}
+
+	ret = opal_read_datastr(dev->fd, opal_dev, to, offset, size);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_ds_anybody_read(struct sed_device *dev, uint8_t *to, uint32_t size, uint32_t offset)
+{
+	int ret = 0;
+	struct opal_device *opal_dev;
+
+	if (to == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide a valid destination pointer\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID);
+	if (ret) {
+		goto end_sessn;
+	}
+
+	ret = opal_read_datastr(dev->fd, opal_dev, to, offset, size);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_ds_anybody_write(struct sed_device *dev, uint8_t *from, uint32_t size, uint32_t offset)
+{
+	int ret = 0;
+	struct opal_device *opal_dev;
+
+	if (from == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide a valid source pointer\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID);
+	if (ret) {
+		goto end_sessn;
+	}
+
+	ret = opal_write_datastr(dev->fd, opal_dev, from, offset, size);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+static struct opal_req_item opal_ds_add_anybody_set_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } }, /* Values */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0x03 } }, /* BooleanExpr */
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_BYTES, .len = 4, .val = { .bytes = opal_uid[OPAL_HALF_UID_AUTHORITY_OBJ_REF_UID] } },
+	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = opal_uid[OPAL_ANYBODY_UID] } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+/**
+ * Change ACL in such way so anybody user can read the data but only
+ * Admin1 can write to it.
+ * Admin1 key needs to be provided
+ */
+int opal_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key_len)
+{
+	int ret = 0;
+	struct sed_key disk_key;
+	struct opal_device *opal_dev;
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide password\n");
+		return -EINVAL;
+	}
+	opal_dev = dev->priv;
+
+	sed_key_init(&disk_key, key, key_len);
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret) {
+			goto end_sessn;
+	}
+
+	prepare_req_buf(opal_dev, opal_ds_add_anybody_set_cmd, ARRAY_SIZE(opal_ds_add_anybody_set_cmd),
+			opal_uid[OPAL_ACE_DS_GET_ALL_UID], opal_method[OPAL_SET_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(dev->fd, opal_dev, false);
+
+	opal_put_all_tokens(opal_dev->payload.tokens, &opal_dev->payload.len);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_list_lr_pt(struct sed_device *dev, const char *password, uint8_t key_len)
+{
+	struct sed_key disk_key;
+	struct opal_device *opal_dev;
+	int ret = 0;
+
+	if (password == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide the password.\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	ret = sed_key_init(&disk_key, password, key_len);
+	if (ret) {
+		return ret;
+	}
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	if (ret)
+		goto end_sessn;
+
+	ret = list_lr(dev->fd, opal_dev);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}

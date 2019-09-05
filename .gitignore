@@ -1,0 +1,16 @@
+*.o
+*.d
+*.a
+VERSION
+sedcli
+sedcli-kmip
+sedcli-static
+sedcli-dynamic
+libsed.a
+libsed.so*
+.cproject
+.project
+config.log
+config.mk
+config.h
+tags
