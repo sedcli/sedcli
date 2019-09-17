@@ -40,4 +40,4 @@ We encourage contributions! Patches are accepted via pull request:
 * Contributions into libsed are accepted on LGPL-2.1-or-later license
 * Patches must be signedoff by the developer. This indicates that submitter
 agrees to the **Developer Certificate of Origin**
-([DCO] https://developercertificate.org)
+[DCO](https://developercertificate.org)
