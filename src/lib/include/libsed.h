@@ -73,6 +73,11 @@ int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid)
 /**
  *
  */
+int sed_revertsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key);
+
+/**
+ *
+ */
 int sed_setpw(struct sed_device *dev, const struct sed_key *old_key,
 		const struct sed_key *new_key);
 

@@ -379,6 +379,13 @@ int sedopal_reverttper(struct sed_device *dev, const struct sed_key *key,
 	return do_generic_opal(fd, key, ioctl_code);
 }
 
+int sedopal_revertsp(struct sed_device *dev, const struct sed_key *key,
+				bool keep_global_rn_key)
+{
+	/* No support for REVERTTSP method in kernel driver */
+	return -EOPNOTSUPP;
+}
+
 int sedopal_save(struct sed_device *dev, const char *password, uint8_t key_len,
 				const char *user, enum SED_LOCK_TYPE lock_type, uint8_t lr, bool sum)
 {
