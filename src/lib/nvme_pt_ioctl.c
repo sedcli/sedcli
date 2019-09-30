@@ -30,6 +30,8 @@
 #define OPAL_FEAT_OPALV100   0x0200
 #define OPAL_FEAT_OPALV200   0x0203
 
+#define SUM_SELECTION_LIST   0x060000
+
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define MIN(x,y)  (((x - y) >> 63) & 1) ? x : y
 
@@ -945,10 +947,7 @@ static int opal_activate_lsp(int fd, struct opal_device *dev, bool sum, uint8_t 
 		usr_lr[7] = lr[0];
 
 		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTNAME);
-		pos += append_u8(buf + pos, buf_len - pos, 0x83);
-		pos += append_u8(buf + pos, buf_len - pos, 6);
-		pos += append_u8(buf + pos, buf_len - pos, 0);
-		pos += append_u8(buf + pos, buf_len - pos, 0);
+		pos += append_u64(buf + pos, buf_len - pos, SUM_SELECTION_LIST);
 		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTLIST);
 		pos += append_bytes(buf + pos, buf_len - pos, usr_lr,
 				OPAL_UID_LENGTH);
