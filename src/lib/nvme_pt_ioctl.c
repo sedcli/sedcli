@@ -161,10 +161,6 @@ static uint8_t opal_method[][OPAL_UID_LENGTH] = {
 		{ 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x08, 0x03 },
 };
 
-static const uint8_t opal_mehod_params[][OPAL_UID_LENGTH] = {
-	[OPAL_REVERTSP_KEEP_GL_RN_KEY] = {0x83, 0x06, 0x00, 0x00},
-};
-
 struct opal_req_item {
 	int type;
 	int len;
@@ -830,34 +826,26 @@ static int opal_revert_tper_local(int fd, struct opal_device *dev)
 }
 
 static struct opal_req_item opal_revert_sp_cmd[] = {
-	{.type = OPAL_U8, .len = 1, .val = {.byte = OPAL_STARTNAME}},
-	{.type = OPAL_U8, .len = 1,
-		.val = {.byte = opal_mehod_params[OPAL_REVERTSP_KEEP_GL_RN_KEY][0]}},
-	{.type = OPAL_U8, .len = 1,
-		.val = {.byte = opal_mehod_params[OPAL_REVERTSP_KEEP_GL_RN_KEY][1]}},
-	{.type = OPAL_U8, .len = 1,
-		.val = {.byte = opal_mehod_params[OPAL_REVERTSP_KEEP_GL_RN_KEY][2]}},
-	{.type = OPAL_U8, .len = 1,
-		.val = {.byte = opal_mehod_params[OPAL_REVERTSP_KEEP_GL_RN_KEY][3]}},
-	{.type = OPAL_U8, .len = 1,
-		.val = {.byte = OPAL_TRUE}},
-	{.type = OPAL_U8, .len = 1,
-		.val = {.byte = OPAL_ENDNAME}},
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U64, .len = 4, .val = { .uint = KEEP_GLOBAL_RANGE_KEY } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_TRUE } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
 };
 
-static int opal_revert_sp_local(int fd, struct opal_device *dev, bool keep_global_rn_key) {
-    int ret = 0;
+static int opal_revertlsp_local(int fd, struct opal_device *dev, bool keep_global_rn_key)
+{
+	int ret = 0;
 
-    prepare_req_buf(dev, opal_revert_sp_cmd, ARRAY_SIZE(opal_revert_sp_cmd),
-                    opal_uid[OPAL_THISSP_UID],
-                    opal_method[OPAL_REVERTSP_METHOD_UID]);
+	prepare_req_buf(dev, opal_revert_sp_cmd, ARRAY_SIZE(opal_revert_sp_cmd),
+			opal_uid[OPAL_THISSP_UID],
+			opal_method[OPAL_REVERTSP_METHOD_UID]);
 
-    opal_revert_sp_cmd[5].val.byte = keep_global_rn_key ? OPAL_TRUE : OPAL_FALSE;
-    ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	opal_revert_sp_cmd[2].val.byte = keep_global_rn_key ? OPAL_TRUE : OPAL_FALSE;
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
 
-    opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
-    return ret;
+	return ret;
 }
 
 static struct opal_req_item opal_generic_get_column_cmd[] = {
@@ -1713,7 +1701,7 @@ end_sessn:
 	return ret;
 }
 
-int opal_revertsp_pt(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
+int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
 {
 	int ret = 0;
 	struct opal_device *opal_dev;
@@ -1730,7 +1718,7 @@ int opal_revertsp_pt(struct sed_device *dev, const struct sed_key *key, bool kee
 		return ret;
 	}
 
-	ret = opal_revert_sp_local(dev->fd, opal_dev, keep_global_rn_key);
+	ret = opal_revertlsp_local(dev->fd, opal_dev, keep_global_rn_key);
 	opal_end_session(dev->fd, opal_dev);
 	return ret;
 }

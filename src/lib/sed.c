@@ -98,7 +98,7 @@ static struct opal_interface opal_if = {
 	.ownership_fn	= opal_takeownership_pt,
 	.revert_fn	= opal_reverttper_pt,
 	.activatelsp_fn	= opal_activate_lsp_pt,
-	.revertsp_fn	= opal_revertsp_pt,
+	.revertsp_fn	= opal_revertlsp_pt,
 	.setup_global_range_fn = opal_setup_global_range_pt,
 	.addusr_to_lr_fn= opal_add_usr_to_lr_pt,
 	.activate_usr_fn= opal_activate_usr_pt,
@@ -210,7 +210,7 @@ int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid)
 	return curr_if->revert_fn(dev, key, psid);
 }
 
-int sed_revertsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
+int sed_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
 {
 	return curr_if->revertsp_fn(dev, key, keep_global_rn_key);
 }

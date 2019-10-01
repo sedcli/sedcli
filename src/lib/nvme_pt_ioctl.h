@@ -63,6 +63,8 @@
 #define FC_OPALV100   0x0200
 #define FC_OPALV200   0x0203
 
+#define KEEP_GLOBAL_RANGE_KEY (0x060000)
+
 enum {
 	TCG_SECP_00 = 0,
 	TCG_SECP_01,
@@ -131,10 +133,6 @@ enum opalmethod {
 	OPAL_AUTHENTICATE_METHOD_UID,
 	OPAL_RANDOM_METHOD_UID,
 	OPAL_ERASE_METHOD_UID,
-};
-
-enum opalmethod_param {
-	OPAL_REVERTSP_KEEP_GL_RN_KEY,
 };
 
 enum opaltoken {
@@ -317,7 +315,7 @@ int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key);
 
 int opal_reverttper_pt(struct sed_device *dev, const struct sed_key *key, bool psid);
 
-int opal_revertsp_pt(struct sed_device *dev, const struct sed_key *key,
+int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key,
 		bool keep_global_rn_key);
 
 int opal_activate_lsp_pt(struct sed_device *dev, const struct sed_key *key,
