@@ -47,9 +47,6 @@ int sedopal_secure_erase_lr(struct sed_device *dev, const char *password,
 
 int sedopal_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid);
 
-int sedopal_revertsp(struct sed_device *dev, const struct sed_key *key,
-		bool keep_global_rn_key);
-
 int sedopal_save(struct sed_device *dev, const char *password, uint8_t key_len,
 				const char *user, enum SED_LOCK_TYPE lock_type, uint8_t lr, bool sum);
 

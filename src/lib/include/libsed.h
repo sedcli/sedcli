@@ -74,7 +74,7 @@ int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid)
  * Revert Locking SP to its Original Factory State.
  *
  * @param dev			the device to operate on
- * @param key			the SID password
+ * @param key			the Admin1 password
  * @param keep_global_rn_key	if true then TPer shall continue to use the media
  * 				encryption key associated with the Global locking
  * 				range after the Locking SP transitions to the
