@@ -71,6 +71,22 @@ int sed_lock_unlock(struct sed_device *dev, const struct sed_key *key, enum SED_
 int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid);
 
 /**
+ * Revert Locking SP to its Original Factory State.
+ *
+ * @param dev			the device to operate on
+ * @param key			the Admin1 password
+ * @param keep_global_rn_key	if true then TPer shall continue to use the media
+ * 				encryption key associated with the Global locking
+ * 				range after the Locking SP transitions to the
+ * 				“Manufactured-Inactive” state. Can be used in order
+ * 				to skip data erasing when OPAL functionality is
+ * 				reverted.
+ *
+ * @return OPAL_SUCCESS on success
+ */
+int sed_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key);
+
+/**
  *
  */
 int sed_setpw(struct sed_device *dev, const struct sed_key *old_key,

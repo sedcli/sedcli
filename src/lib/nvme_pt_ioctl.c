@@ -827,6 +827,29 @@ static int opal_revert_tper_local(int fd, struct opal_device *dev)
 	return ret;
 }
 
+static struct opal_req_item opal_revert_sp_cmd[] = {
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
+	{ .type = OPAL_U64, .len = 4, .val = { .uint = KEEP_GLOBAL_RANGE_KEY } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_TRUE } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
+};
+
+static int opal_revertlsp_local(int fd, struct opal_device *dev, bool keep_global_rn_key)
+{
+	int ret = 0;
+
+	prepare_req_buf(dev, opal_revert_sp_cmd, ARRAY_SIZE(opal_revert_sp_cmd),
+			opal_uid[OPAL_THISSP_UID],
+			opal_method[OPAL_REVERTSP_METHOD_UID]);
+
+	opal_revert_sp_cmd[2].val.byte = keep_global_rn_key ? OPAL_TRUE : OPAL_FALSE;
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
 static struct opal_req_item opal_generic_get_column_cmd[] = {
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
@@ -1673,6 +1696,28 @@ int opal_activate_lsp_pt(struct sed_device *dev, const struct sed_key *key,
 	ret = opal_activate_lsp(dev->fd, opal_dev, sum, lr, num_lrs);
 
 end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
+{
+	int ret = 0;
+	struct opal_device *opal_dev;
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("Must Provide a password.\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID, OPAL_ADMIN1_UID, key);
+	if (ret) {
+		opal_end_session(dev->fd, opal_dev);
+		return ret;
+	}
+
+	ret = opal_revertlsp_local(dev->fd, opal_dev, keep_global_rn_key);
 	opal_end_session(dev->fd, opal_dev);
 	return ret;
 }

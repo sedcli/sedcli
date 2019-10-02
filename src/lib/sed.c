@@ -21,6 +21,7 @@ typedef int (*take_ownership)(struct sed_device *, const struct sed_key *);
 typedef int (*reverttper)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*activate_lsp)(struct sed_device *, const struct sed_key *,
 			char *, bool);
+typedef int (*revertsp)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*setup_global_range)(struct sed_device *, const struct sed_key *);
 typedef int (*add_usr_to_lr)(struct sed_device *, const char *, uint8_t,
 			const char *, enum SED_LOCK_TYPE, uint8_t);
@@ -47,6 +48,7 @@ struct opal_interface {
 	init init_fn;
 	take_ownership ownership_fn;
 	reverttper revert_fn;
+	revertsp revertsp_fn;
 	activate_lsp activatelsp_fn;
 	setup_global_range setup_global_range_fn;
 	add_usr_to_lr addusr_to_lr_fn;
@@ -72,6 +74,7 @@ static struct opal_interface opal_if = {
 	.ownership_fn = sedopal_takeownership,
 	.revert_fn = sedopal_reverttper,
 	.activatelsp_fn = sedopal_activatelsp,
+	.revertsp_fn = NULL,
 	.setup_global_range_fn = sedopal_setup_global_range,
 	.addusr_to_lr_fn = sedopal_add_usr_to_lr,
 	.activate_usr_fn = sedopal_enable_user,
@@ -95,6 +98,7 @@ static struct opal_interface opal_if = {
 	.ownership_fn	= opal_takeownership_pt,
 	.revert_fn	= opal_reverttper_pt,
 	.activatelsp_fn	= opal_activate_lsp_pt,
+	.revertsp_fn	= opal_revertlsp_pt,
 	.setup_global_range_fn = opal_setup_global_range_pt,
 	.addusr_to_lr_fn= opal_add_usr_to_lr_pt,
 	.activate_usr_fn= opal_activate_usr_pt,
@@ -204,6 +208,14 @@ int sed_setup_global_range(struct sed_device *dev, const struct sed_key *key)
 int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid)
 {
 	return curr_if->revert_fn(dev, key, psid);
+}
+
+int sed_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
+{
+	if (curr_if->revertsp_fn == NULL)
+		return -EOPNOTSUPP;
+
+	return curr_if->revertsp_fn(dev, key, keep_global_rn_key);
 }
 
 int sed_activatelsp(struct sed_device *dev, const struct sed_key *key)
