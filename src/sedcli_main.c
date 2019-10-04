@@ -329,10 +329,33 @@ static int get_password(struct sed_key *pwd)
 	return 0;
 }
 
+static void print_sed_status(int status)
+{
+	const char *sed_status = NULL;
+
+	if (status < 0) {
+		if (status == -EINVAL) {
+			sedcli_printf(LOG_ERR, "Invalid parameter\n");
+		} else if (status == -ENODEV) {
+			sedcli_printf(LOG_ERR, "Couldn't determine device state\n");
+		} else if (status == -ENOMEM) {
+			sedcli_printf(LOG_ERR, "No memory\n");
+		} else {
+			sedcli_printf(LOG_ERR, "Unknown error\n");
+		}
+	} else {
+		sed_status = sed_error_text(status);
+		if (sed_status == NULL)
+			sedcli_printf(LOG_ERR, "Unknown Error\n");
+		else
+			sedcli_printf((status == SED_SUCCESS) ? LOG_INFO : LOG_ERR,
+					"%s\n", sed_status);
+	}
+}
+
 static int handle_ownership(void)
 {
 	struct sed_device *dev = NULL;
-	const char *sed_status = NULL;
 	int ret;
 
 	sedcli_printf(LOG_INFO, "New SID password: ");
@@ -364,17 +387,7 @@ static int handle_ownership(void)
 
 	ret = sed_takeownership(dev, &opts->pwd);
 
-	sed_status = sed_error_text(ret);
-
-	if (sed_status == NULL && ret != 0) {
-		if (ret == -EINVAL) {
-			sedcli_printf(LOG_ERR, "Invalid parameter\n");
-		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
-		}
-	} else {
-		sedcli_printf(LOG_ERR, "%s\n", sed_status);
-	}
+	print_sed_status(ret);
 
 	sed_deinit(dev);
 
@@ -384,7 +397,6 @@ static int handle_ownership(void)
 static int handle_activatelsp(void)
 {
 	struct sed_device *dev = NULL;
-	const char *sed_status = NULL;
 	int ret;
 
 	sedcli_printf(LOG_INFO, "Enter SID password: ");
@@ -403,19 +415,7 @@ static int handle_activatelsp(void)
 
 	ret = sed_activatelsp(dev, &opts->pwd);
 
-	sed_status = sed_error_text(ret);
-
-	if (sed_status == NULL && ret != 0) {
-		if (ret == -EINVAL) {
-			sedcli_printf(LOG_ERR, "Invalid parameter\n");
-		} else if (ret == -ENODEV) {
-			sedcli_printf(LOG_ERR, "Couldn't determine device state\n");
-		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
-		}
-	} else {
-		sedcli_printf(LOG_ERR, "%s\n", sed_status);
-	}
+	print_sed_status(ret);
 
 	sed_deinit(dev);
 
@@ -425,7 +425,6 @@ static int handle_activatelsp(void)
 static int handle_reverttper(void)
 {
 	struct sed_device *dev = NULL;
-	const char *sed_status = NULL;
 	int ret;
 
 	sedcli_printf(LOG_INFO, "Enter %s password: ", opts->psid ? "PSID" : "SID");
@@ -444,17 +443,7 @@ static int handle_reverttper(void)
 
 	ret = sed_reverttper(dev, &opts->pwd, opts->psid);
 
-	sed_status = sed_error_text(ret);
-
-	if (sed_status == NULL && ret != 0) {
-		if (ret == -EINVAL) {
-			sedcli_printf(LOG_ERR, "Invalid parameter\n");
-		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
-		}
-	} else {
-		sedcli_printf(LOG_ERR, "%s\n", sed_status);
-	}
+	print_sed_status(ret);
 
 	sed_deinit(dev);
 
@@ -464,7 +453,6 @@ static int handle_reverttper(void)
 static int handle_lock_unlock(void)
 {
 	struct sed_device *dev = NULL;
-	const char *sed_status = NULL;
 	int ret;
 
 	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
@@ -483,19 +471,7 @@ static int handle_lock_unlock(void)
 
 	ret = sed_lock_unlock(dev, &opts->pwd, opts->lock_type);
 
-	sed_status = sed_error_text(ret);
-
-	if (sed_status == NULL && ret != 0) {
-		if (ret == -EINVAL) {
-			sedcli_printf(LOG_ERR, "Invalid parameter\n");
-		} else if (ret == -ENOMEM) {
-			sedcli_printf(LOG_ERR, "No memory\n");
-		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
-		}
-	} else {
-		sedcli_printf(LOG_ERR, "%s\n", sed_status);
-	}
+	print_sed_status(ret);
 
 	sed_deinit(dev);
 
@@ -505,7 +481,6 @@ static int handle_lock_unlock(void)
 static int handle_setup_global_range(void)
 {
 	struct sed_device *dev = NULL;
-	const char *sed_status = NULL;
 	int ret;
 
 	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
@@ -524,17 +499,7 @@ static int handle_setup_global_range(void)
 
 	ret = sed_setup_global_range(dev, &opts->pwd);
 
-	sed_status = sed_error_text(ret);
-
-	if (sed_status == NULL && ret != 0) {
-		if (ret == -EINVAL) {
-			sedcli_printf(LOG_ERR, "Invalid parameter\n");
-		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
-		}
-	} else {
-		sedcli_printf(LOG_ERR, "%s\n", sed_status);
-	}
+	print_sed_status(ret);
 
 	sed_deinit(dev);
 
@@ -544,7 +509,6 @@ static int handle_setup_global_range(void)
 static int handle_setpw(void)
 {
 	struct sed_device *dev = NULL;
-	const char *sed_status = NULL;
 	int ret;
 
 	sedcli_printf(LOG_INFO, "Old Admin1 password: ");
@@ -584,17 +548,7 @@ static int handle_setpw(void)
 
 	ret = sed_setpw(dev, &opts->old_pwd, &opts->pwd);
 
-	sed_status = sed_error_text(ret);
-
-	if (sed_status == NULL && ret != 0) {
-		if (ret == -EINVAL) {
-			sedcli_printf(LOG_ERR, "Invalid parameter\n");
-		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
-		}
-	} else {
-		sedcli_printf(LOG_ERR, "%s\n", sed_status);
-	}
+	print_sed_status(ret);
 
 	sed_deinit(dev);
 
