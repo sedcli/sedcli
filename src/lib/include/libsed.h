@@ -27,6 +27,29 @@ struct sed_key {
 	uint8_t len;
 };
 
+enum sed_status {
+	SED_SUCCESS,
+	SED_NOT_AUTHORIZED,
+	SED_UNKNOWN_ERROR,
+	SED_SP_BUSY,
+	SED_SP_FAILED,
+	SED_SP_DISABLED,
+	SED_SP_FROZEN,
+	SED_NO_SESSIONS_AVAILABLE,
+	SED_UNIQUENESS_CONFLICT,
+	SED_INSUFFICIENT_SPACE,
+	SED_INSUFFICIENT_ROWS,
+	SED_INVALID_FUNCTION,
+	SED_INVALID_PARAMETER,
+	SED_INVALID_REFERENCE,
+	SED_UNKNOWN_ERROR_1,
+	SED_TPER_MALFUNCTION,
+	SED_TRANSACTION_FAILURE,
+	SED_RESPONSE_OVERFLOW,
+	SED_AUTHORITY_LOCKED_OUT,
+	SED_FAIL = 0x3F, /* Fail status code as defined by Opal is higher value */
+};
+
 /**
  * This function initializes libsed for usage. It opens device node file and
  * stores relevant information in data structure representing libsed context.

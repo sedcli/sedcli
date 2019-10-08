@@ -119,26 +119,32 @@ static struct opal_interface opal_if = {
 
 static struct opal_interface *curr_if = &opal_if;
 
-static const char *const sed_errors[] = {
-	"Success",
-	"Not Authorized",
-	"Unknown Error",
-	"SP Busy",
-	"SP Failed",
-	"SP Disabled",
-	"SP Frozen",
-	"No Sessions Available",
-	"Uniqueness Conflict",
-	"Insufficient Space",
-	"Insufficient Rows",
-	"Invalid Function",
-	"Invalid Parameter",
-	"Invalid Reference",
-	"Unknown Error",
-	"TPER Malfunction",
-	"Transaction Failure",
-	"Response Overflow",
-	"Authority Locked Out",
+struct sed_status_ret {
+	int code;
+	const char *text;
+};
+
+struct sed_status_ret sed_statuses[] = {
+	{ .code = SED_SUCCESS, .text = "Success" },
+	{ .code = SED_NOT_AUTHORIZED, .text = "Not Authorized" },
+	{ .code = SED_UNKNOWN_ERROR, .text = "Unknown Error" },
+	{ .code = SED_SP_BUSY, .text = "SP Busy" },
+	{ .code = SED_SP_FAILED, .text = "SP Failed" },
+	{ .code = SED_SP_DISABLED, .text = "SP Disabled" },
+	{ .code = SED_SP_FROZEN, .text = "SP Frozen" },
+	{ .code = SED_NO_SESSIONS_AVAILABLE, .text = "No Sessions Available" },
+	{ .code = SED_UNIQUENESS_CONFLICT, .text = "Uniqueness Conflict" },
+	{ .code = SED_INSUFFICIENT_SPACE, .text = "Insufficient Space" },
+	{ .code = SED_INSUFFICIENT_ROWS, .text = "Insufficient Rows" },
+	{ .code = SED_INVALID_FUNCTION, .text = "Invalid Function" },
+	{ .code = SED_INVALID_PARAMETER, .text = "Invalid Parameter" },
+	{ .code = SED_INVALID_REFERENCE, .text = "Invalid Reference" },
+	{ .code = SED_UNKNOWN_ERROR_1, .text = "Unknown Error" },
+	{ .code = SED_TPER_MALFUNCTION, .text = "TPER Malfunction" },
+	{ .code = SED_TRANSACTION_FAILURE, .text = "Transaction Failure" },
+	{ .code = SED_RESPONSE_OVERFLOW, .text = "Response Overflow" },
+	{ .code = SED_AUTHORITY_LOCKED_OUT, .text = "Authority Locked Out" },
+	{ .code = SED_FAIL, .text = "Failed" },
 };
 
 int sed_init(struct sed_device **dev, const char *dev_path)
@@ -319,14 +325,9 @@ int sed_list_lr(struct sed_device *dev, const char *key, uint8_t key_len)
 
 const char *sed_error_text(int sed_status)
 {
-	/* Fail status code as defined by Opal is higher value*/
-	if (sed_status == 0x3F) {
-		return "Failed\n";
-	}
-
-	if (sed_status >= ARRAY_SIZE(sed_errors) || sed_status < 0) {
+	if ((sed_status > SED_AUTHORITY_LOCKED_OUT && sed_status != SED_FAIL) || sed_status < 0) {
 		return NULL;
 	}
 
-	return sed_errors[sed_status];
+	return sed_statuses[sed_status].text;
 }
