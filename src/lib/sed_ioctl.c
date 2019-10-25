@@ -58,15 +58,21 @@ static int do_generic_lkul(int fd, const struct sed_key *key,
 					bool sum, unsigned long ioctl_cmd)
 {
 	struct opal_lock_unlock oln = { };
+	uint32_t opal_user = user, opal_locktype = lock_type;
 
-	if (!sum || key == NULL || key->len == 0) {
-		SEDCLI_DEBUG_MSG("Need to supply user, lock type and password!\n");
+	if (key == NULL || key->len == 0) {
+		SEDCLI_DEBUG_MSG("Need to supply password!\n");
+		return -EINVAL;
+	}
+
+	if (!sum && (opal_user > SED_USER9 || opal_locktype > SED_LOCK)) {
+		SEDCLI_DEBUG_MSG("Need to provide correct user or lock type!\n");
 		return -EINVAL;
 	}
 
 	oln.session.sum = sum;
-	oln.session.who = user;
-	oln.l_state = lock_type;
+	oln.session.who = opal_user;
+	oln.l_state = opal_locktype;
 
 	oln.session.opal_key.key_len = key->len;
 	memcpy(oln.session.opal_key.key, key->key, oln.session.opal_key.key_len);

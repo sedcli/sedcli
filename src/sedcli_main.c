@@ -182,10 +182,9 @@ struct sedcli_options {
 static struct sedcli_options *opts = NULL;
 
 static char *allowed_lock_type[] = {
-	[SED_NO_LOCK] = "UNLOCK",
-	[SED_READ_LOCK] = "WO",
-	[SED_WRITE_LOCK] = "RO",
-	[SED_READ_WRITE_LOCK] = "RW",
+	[SED_RO_SHIFT] = "RO",
+	[SED_RW_SHIFT] = "RW",
+	[SED_LK_SHIFT] = "LK",
 };
 
 static struct termios term;
@@ -240,7 +239,7 @@ static int get_lock_type(const char *lock_type)
 
 	for (i = 0; i < ARRAY_SIZE(allowed_lock_type); i++) {
 		if (0 == strcmp(allowed_lock_type[i], lock_type)) {
-			return i;
+			return (1 << i);
 		}
 	}
 
