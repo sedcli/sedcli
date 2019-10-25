@@ -10,10 +10,10 @@
 #include <stdint.h>
 #include <libsed.h>
 
-enum sed_lock_state {
-	SED_RO = 0x01,
-	SED_RW = 0x02,
-	SED_LK = 0x04,
+enum SED_ACCESSTYPE {
+	SED_RO = 0x01, /* 1 << 0 */
+	SED_RW = 0x02, /* 1 << 1 */
+	SED_LK = 0x04, /* 1 << 2 */
 };
 
 enum sed_user {

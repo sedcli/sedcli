@@ -58,9 +58,15 @@ Activates Locking SP.
 .IP "\fB\-R -d <device> [-i]\fR or \fB\-\-revert --device <device> [--psid]\fR"
 Reverts TPer to Manufactured-Inactivate state using either SID or PSID authority.
 
-.IP "\fB\-L -d <device> -t <locktype>\fR or \fB\-\-lock-unlock --device <device> --locktype {RW|RO|WO|UNLOCK}\fR"
-Changes the lock state for the device. There is a possibility to setup Read lock,
-Write lock and Read-Write lock and unlock the device.
+.IP "\fB\-L -d <device> -t <accesstype>\fR or \fB\-\-lock-unlock --device <device> --accesstype {RO|RW|LK}\fR"
+.IP
+Changes the lock state for the device. Following access modes are available:
+.IP
+1. Read-Only(RO) - user can only read the data from the disk.
+.IP
+2. Read-Write(RW) - user can read/write data from/to the disk.
+.IP
+3. Locked(LK) - data is locked, user can NOT read/write data from/to the disk.
 
 .IP "\fB\-P -d <device>\fR or \fB\-\-set-password --device <device>\fR"
 Updates password for Admin1 authority in Locking SP.

@@ -390,18 +390,14 @@ static int opal_rw_lock(struct opal_device *dev, uint8_t *lr_buff, size_t len,
 		return -ERANGE;
 
 	switch (l_state) {
-	case SED_NO_LOCK:
-		*rl = *wl = 0;
-		break;
-	case SED_READ_LOCK:
-		*rl = 1;
-		*wl = 0;
-		break;
-	case SED_WRITE_LOCK:
+	case SED_RO_ACCESS:
 		*rl = 0;
 		*wl = 1;
 		break;
-	case SED_READ_WRITE_LOCK:
+	case SED_RW_ACCESS:
+		*rl = *wl = 0;
+		break;
+	case SED_NO_ACCESS:
 		*rl = *wl = 1;
 		break;
 	default:
@@ -1723,15 +1719,14 @@ int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key, bool ke
 }
 
 int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
-		const char *usr, enum SED_LOCK_TYPE lock_type, uint8_t lr)
+		const char *usr, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
 	struct sed_key disk_key;
 	int ret = 0;
 	struct opal_device *opal_dev;
-	uint32_t who;
+	uint32_t who, lk_type = lock_type;
 
-	if (lock_type > SED_READ_WRITE_LOCK || lock_type < SED_NO_LOCK || key == NULL
-		|| key_len == 0 || usr == NULL) {
+	if (lk_type > SED_NO_ACCESS || key == NULL || key_len == 0 || usr == NULL) {
 		SEDCLI_DEBUG_MSG("Need to supply user, lock type and password!\n");
 		return -EINVAL;
 	}
@@ -1750,7 +1745,7 @@ int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_l
 	if (ret)
 		goto end_sessn;
 
-	ret = add_usr_to_lr(dev->fd, opal_dev, lock_type, lr, who);
+	ret = add_usr_to_lr(dev->fd, opal_dev, lk_type, lr, who);
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);
@@ -1843,12 +1838,13 @@ end_sessn:
 }
 
 int opal_lock_unlock_pt(struct sed_device *dev, const struct sed_key *key,
-		enum SED_LOCK_TYPE lock_type)
+		enum SED_ACCESS_TYPE lock_type)
 {
 	int ret = 0;
 	struct opal_device *opal_dev;
+	uint32_t lk_type = lock_type;
 
-	if (lock_type > SED_READ_WRITE_LOCK || lock_type < SED_NO_LOCK || key == NULL) {
+	if (lk_type > SED_NO_ACCESS || key == NULL) {
 		SEDCLI_DEBUG_MSG("Need to supply lock type and password!\n");
 		return -EINVAL;
 	}

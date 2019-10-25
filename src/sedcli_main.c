@@ -63,7 +63,7 @@ static cli_option reverttper_opts[] = {
 
 static cli_option lock_unlock_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
-	{'t', "locktype", "String specifying how to lock/unlock drive. Allowed values: RW/RO/WO/UNLOCK", 1, "FMT", CLI_OPTION_REQUIRED},
+	{'t', "accesstype", "String specifying access type to the data on drive. Allowed values: RO/RW/LK", 1, "FMT", CLI_OPTION_REQUIRED},
 	{0}
 };
 
@@ -181,12 +181,7 @@ struct sedcli_options {
 
 static struct sedcli_options *opts = NULL;
 
-static char *allowed_lock_type[] = {
-	[SED_NO_LOCK] = "UNLOCK",
-	[SED_READ_LOCK] = "WO",
-	[SED_WRITE_LOCK] = "RO",
-	[SED_READ_WRITE_LOCK] = "RW",
-};
+static char *allowed_lock_type[] = {"RO", "RW", "LK"};
 
 static struct termios term;
 
@@ -240,7 +235,7 @@ static int get_lock_type(const char *lock_type)
 
 	for (i = 0; i < ARRAY_SIZE(allowed_lock_type); i++) {
 		if (0 == strcmp(allowed_lock_type[i], lock_type)) {
-			return i;
+			return (1 << i);
 		}
 	}
 
@@ -251,7 +246,7 @@ int lock_unlock_handle_opts(char *opt, char **arg)
 {
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
-	} else if (!strcmp(opt, "locktype")) {
+	} else if (!strcmp(opt, "accesstype")) {
 		opts->lock_type = get_lock_type(arg[0]);
 		if (opts->lock_type == -1) {
 			sedcli_printf(LOG_ERR, "Incorrect lock type\n");
