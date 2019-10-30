@@ -58,6 +58,11 @@ function common_mk() {
 	app_config_mk "CFLAGS+=-include ${CONFIG_H}"
 	app_config_mk "CFLAGS+=-O2 -g -Wall -Werror -Wno-unused-function -Wno-address-of-packed-member -fstack-protector-all -std=gnu99"
 	app_config_mk "LDFLAGS+=-L."
+	if [ -f /etc/lsb-release ] && [ -n "`cat /etc/lsb-release | grep -i ubuntu`" ]; then
+		app_config_mk "LIB_DIR=/lib/x86_64-linux-gnu"
+	else
+		app_config_mk "LIB_DIR=/usr/lib64"
+	fi
 }
 
 function print_help() {
