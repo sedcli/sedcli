@@ -28,6 +28,9 @@ int sedopal_init(struct sed_device *dev, const char *device_path)
 {
 	int ret = 0;
 
+	dev->fd = 0;
+	dev->priv = NULL;
+
 	ret = open_dev(device_path);
 	if (ret < 0)
 		return -ENODEV;

@@ -300,6 +300,9 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 	int ret = 0;
 	struct opal_device *opal_dev = NULL;
 
+	dev->fd = 0;
+	dev->priv = NULL;
+
 	ret = open_dev(device_path);
 	if (ret < 0)
 		return -ENODEV;
