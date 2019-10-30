@@ -100,14 +100,14 @@ distclean: clean
 install:
 	@echo " Installing $(TARGET)"
 	install -m 755 $(TARGET)-dynamic /usr/sbin/$(TARGET)
-	install -m 755 $(LIB).so.1.0.1 /usr/lib64/
-	ln -sf /usr/lib64/$(LIB).so.1.0.1 /usr/lib64/$(LIB).so.1
+	install -m 755 $(LIB).so.1.0.1 $(LIB_DIR)
+	ln -sf $(LIB_DIR)/$(LIB).so.1.0.1 $(LIB_DIR)/$(LIB).so.1
 	install -m 644 ../doc/$(TARGET).8 /usr/share/man/man8/$(TARGET).8
 
 uninstall:
 	@echo "  Removing $(TARGET)"
 	-rm /usr/sbin/$(TARGET)
-	-rm /usr/lib64/$(LIB).so*
+	-rm $(LIB_DIR)/$(LIB).so*
 	-rm /usr/share/man/man8/$(TARGET).8
 
 .PHONY: clean all distclean install uninstall
