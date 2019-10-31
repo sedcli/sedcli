@@ -13,11 +13,10 @@
 
 #define SED_MAX_KEY_LEN (256)
 
-enum SED_LOCK_TYPE {
-	SED_NO_LOCK = 0x00,
-	SED_READ_LOCK = 0x01,
-	SED_WRITE_LOCK = 0x02,
-	SED_READ_WRITE_LOCK = (SED_READ_LOCK | SED_WRITE_LOCK),
+enum SED_ACCESS_TYPE {
+	SED_RO_ACCESS = 1 << 0,
+	SED_RW_ACCESS = 1 << 1,
+	SED_NO_ACCESS = 1 << 2,
 };
 
 struct sed_device;
@@ -86,7 +85,7 @@ int sed_setup_global_range(struct sed_device *dev, const struct sed_key *key);
 /**
  *
  */
-int sed_lock_unlock(struct sed_device *dev, const struct sed_key *key, enum SED_LOCK_TYPE lock_type);
+int sed_lock_unlock(struct sed_device *dev, const struct sed_key *key, enum SED_ACCESS_TYPE lock_type);
 
 /**
  *

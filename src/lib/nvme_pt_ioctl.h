@@ -322,7 +322,7 @@ int opal_activate_lsp_pt(struct sed_device *dev, const struct sed_key *key,
 		char *lr_str, bool sum);
 
 int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
-		const char *usr, enum SED_LOCK_TYPE lock_type, uint8_t lr);
+		const char *usr, enum SED_ACCESS_TYPE lock_type, uint8_t lr);
 
 int opal_activate_usr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
 		const char *user);
@@ -334,7 +334,7 @@ int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
 		size_t range_length, bool sum, bool RLE, bool WLE);
 
 int opal_lock_unlock_pt(struct sed_device *dev, const struct sed_key *key,
-		enum SED_LOCK_TYPE lock_type);
+		enum SED_ACCESS_TYPE lock_type);
 
 int opal_set_pwd_pt(struct sed_device *dev, const struct sed_key *old_key,
 		const struct sed_key *new_key);

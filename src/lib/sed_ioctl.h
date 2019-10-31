@@ -14,7 +14,7 @@
 int sedopal_init(struct sed_device *dev, const char *device_path);
 
 int sedopal_lock_unlock(struct sed_device *dev, const struct sed_key *key,
-						enum SED_LOCK_TYPE lock_type);
+						enum SED_ACCESS_TYPE lock_type);
 
 int sedopal_takeownership(struct sed_device *dev, const struct sed_key *key);
 
@@ -27,7 +27,7 @@ int sedopal_setuplr(struct sed_device *dev, const char *password,
 int sedopal_setup_global_range(struct sed_device *dev, const struct sed_key *key);
 
 int sedopal_add_usr_to_lr(struct sed_device *dev, const char *key, uint8_t key_len,
-			const char *user, enum SED_LOCK_TYPE lock_type, uint8_t lr);
+			const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr);
 
 int sedopal_shadowmbr(struct sed_device *dev, const char *password,
 		uint8_t key_len,
@@ -48,7 +48,7 @@ int sedopal_secure_erase_lr(struct sed_device *dev, const char *password,
 int sedopal_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid);
 
 int sedopal_save(struct sed_device *dev, const char *password, uint8_t key_len,
-				const char *user, enum SED_LOCK_TYPE lock_type, uint8_t lr, bool sum);
+				const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr, bool sum);
 
 void sedopal_deinit(struct sed_device *dev);
 
