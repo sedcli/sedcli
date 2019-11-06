@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define SED_MAX_KEY_LEN (256)
+#define SED_MAX_KEY_LEN (32)
 
 enum SED_ACCESS_TYPE {
 	SED_RO_ACCESS = 1 << 0,

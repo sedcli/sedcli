@@ -183,7 +183,7 @@ void sed_deinit(struct sed_device *dev)
 int sed_key_init(struct sed_key *auth_key, const char *key, const uint8_t key_len)
 {
 	uint8_t src_len = key_len;
-	uint8_t dest_len = SED_MAX_KEY_LEN - 1;
+	uint8_t dest_len = SED_MAX_KEY_LEN;
 
 	if (src_len == 0) {
 		return -EINVAL;

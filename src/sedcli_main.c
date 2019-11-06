@@ -277,51 +277,52 @@ int setpw_handle_opts(char *opt, char **arg)
 
 static int get_password(struct sed_key *pwd)
 {
-	int c, flag = 0;
+	size_t dest = SED_MAX_KEY_LEN + 2;
+	uint8_t temp[dest];
+	int ret, len;
 
 	echo_disable();
 
-	if (fgets((char *) pwd->key, SED_MAX_KEY_LEN, stdin) == NULL) {
-		sedcli_printf(LOG_INFO, "Error getting password\n");
-		return -EINVAL;
-	}
+	memset(temp, 0, dest);
 
+	if (fgets((char *) temp, dest, stdin) == NULL) {
+		sedcli_printf(LOG_INFO, "Error getting password\n");
+		ret = -EINVAL;
+		goto err;
+	}
 	sedcli_printf(LOG_INFO, "\n");
 
-	pwd->len = strnlen((char *) pwd->key, SED_MAX_KEY_LEN);
+	/*
+	 * The temp buffer is chosen to be 2-Bytes greater than the MAX_KEY_LEN
+	 * This helps to identify if the user is trying to exceed the MAX
+	 * allowable key_len, by checking for NULL or NEW-LINE character at index
+	 * dest-2. (Last Byte is always a NULL character as per the fgets functionality)
+	 */
+	if (temp[dest - 2] != '\n' && temp[dest - 2] != '\0') {
+		sedcli_printf(LOG_INFO, "Password too long..!!\n");
+		ret = -EINVAL;
+		goto err;
+	}
 
-	/* Handle case when user entered more characters than allowed max size */
-	if (pwd->len == SED_MAX_KEY_LEN - 1 && pwd->key[pwd->len - 1] != '\n') {
-		while ((c = getchar()) != '\n' && c != EOF) {
-			flag = 1;
-			break;
+	len = strnlen((char *)temp, SED_MAX_KEY_LEN);
+	if (temp[len - 1] == '\n') {
+		temp[len - 1] = '\0';
+		--len;
+		if (len == 0) {
+			sedcli_printf(LOG_INFO, "No password provided..!!\n");
+			ret = -EINVAL;
+			goto err;
 		}
-
-		if (flag) {
-			memset(pwd->key, 0, SED_MAX_KEY_LEN);
-			pwd->len = 0;
-			sedcli_printf(LOG_ERR, "Password too long\n");
-			echo_enable();
-			return -EINVAL;
-		}
 	}
 
-	/* Remove new line character if needed */
-	if (pwd->key[pwd->len - 1] == '\n') {
-		pwd->key[pwd->len - 1] = 0;
-		pwd->len--;
-	}
+	pwd->len = len;
+	memcpy(pwd->key, temp, pwd->len);
+	ret = 0;
 
-	if (pwd->len == 0) {
-		sedcli_printf(LOG_ERR, "Password too short\n");
-		memset(pwd->key, 0, SED_MAX_KEY_LEN);
-		pwd->len = 0;
-		echo_enable();
-		return -EINVAL;
-	}
-
+err:
+	memset(temp, 0, dest);
 	echo_enable();
-	return 0;
+	return ret;
 }
 
 static void print_sed_status(int status)
@@ -356,7 +357,6 @@ static int handle_ownership(void)
 	sedcli_printf(LOG_INFO, "New SID password: ");
 
 	ret = get_password(&opts->pwd);
-
 	if (ret != 0) {
 		return -1;
 	}
@@ -364,12 +364,11 @@ static int handle_ownership(void)
 	sedcli_printf(LOG_INFO, "Repeat new SID password: ");
 
 	ret = get_password(&opts->repeated_pwd);
-
 	if (ret != 0) {
 		return -1;
 	}
 
-	if (0 != strcmp((char *) opts->pwd.key, (char *) opts->repeated_pwd.key)) {
+	if (0 != strncmp((char *) opts->pwd.key, (char *) opts->repeated_pwd.key, SED_MAX_KEY_LEN)) {
 		sedcli_printf(LOG_ERR, "Error: passwords don't match\n");
 		return -1;
 	}
