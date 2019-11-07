@@ -234,7 +234,7 @@ static int get_lock_type(const char *lock_type)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(allowed_lock_type); i++) {
-		if (0 == strcmp(allowed_lock_type[i], lock_type)) {
+		if (0 == strncasecmp(allowed_lock_type[i], lock_type, 2)) {
 			return (1 << i);
 		}
 	}
