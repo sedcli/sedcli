@@ -13,6 +13,8 @@
 
 #define SED_MAX_KEY_LEN (32)
 
+#define ENOTSUPP 524 /* Device is not SED compliant */
+
 enum SED_ACCESS_TYPE {
 	SED_RO_ACCESS = 1 << 0,
 	SED_RW_ACCESS = 1 << 1,

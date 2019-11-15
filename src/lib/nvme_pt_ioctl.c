@@ -333,6 +333,8 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 		return -EINVAL;
 	}
 	SEDCLI_DEBUG_PARAM("The device comid is: %u\n", opal_dev->comid);
+	if (!opal_dev->comid)
+		ret = -ENOTSUPP;
 
 	return ret;
 }

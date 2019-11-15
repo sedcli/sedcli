@@ -26,6 +26,7 @@
 
 extern sedcli_printf_t sedcli_printf;
 
+static int sed_discv_handle_opts(char *opt, char **arg);
 static int ownership_handle_opts(char *opt, char **arg);
 static int activatelsp_handle_opts(char*opt, char **arg);
 static int reverttper_handle_opts(char *opt, char **arg);
@@ -33,6 +34,7 @@ static int lock_unlock_handle_opts(char *opt, char **arg);
 static int setup_global_range_handle_opts(char *opt, char **arg);
 static int setpw_handle_opts(char *opt, char **arg);
 
+static int handle_sed_discv(void);
 static int handle_ownership(void);
 static int handle_version(void);
 static int handle_help(void);
@@ -44,6 +46,12 @@ static int handle_setpw(void);
 
 static void echo_enable();
 static void echo_disable();
+
+static cli_option sed_discv_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'f', "format", "Output format: normal|udev", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	{0}
+};
 
 static cli_option ownership_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -78,6 +86,17 @@ static cli_option setpw_opts[] = {
 };
 
 static cli_command sedcli_commands[] = {
+	{
+		.name = "sed-discv",
+		.short_name = 'D',
+		.desc = "Performs SED level0 discovery(works only with NVMe passthru mechanism)",
+		.long_desc = "Performs SED level0 discovery and provides basic info about the device(works only with NVMe passthru mechanism)",
+		.options = sed_discv_opts,
+		.command_handle_opts = sed_discv_handle_opts,
+		.handle = handle_sed_discv,
+		.flags = 0,
+		.help = NULL
+	},
 	{
 		.name = "ownership",
 		.short_name = 'O',
@@ -177,6 +196,7 @@ struct sedcli_options {
 	struct sed_key old_pwd;
 	int psid;
 	int lock_type;
+	int print_fmt;
 };
 
 static struct sedcli_options *opts = NULL;
@@ -199,6 +219,32 @@ static void echo_enable()
 	tcsetattr(1, 0, &term);
 }
 
+enum sed_print_flags {
+	SED_NORMAL = 1 << 0,
+	SED_UDEV = 1 << 1,
+};
+
+enum sed_print_flags val_output_fmt(const char *fmt)
+{
+	if (!fmt)
+		return -EINVAL;
+	if (!strcmp(fmt, "normal"))
+		return SED_NORMAL;
+	if (!strcmp(fmt, "udev"))
+		return SED_UDEV;
+	return -EINVAL;
+}
+
+int sed_discv_handle_opts(char *opt, char **arg)
+{
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "format")) {
+		opts->print_fmt = val_output_fmt(arg[0]);
+	}
+
+	return 0;
+}
 
 int ownership_handle_opts(char *opt, char **arg)
 {
@@ -347,6 +393,63 @@ static void print_sed_status(int status)
 			sedcli_printf((status == SED_SUCCESS) ? LOG_INFO : LOG_ERR,
 					"%s\n", sed_status);
 	}
+}
+
+static void sed_discv_print_normal(int err, const char *dev_path)
+{
+	if (!err)
+		sedcli_printf(LOG_INFO, "%s: is SED-OPAL compliant.\n", opts->dev_path);
+	else if (err == -ENOTSUPP)
+		sedcli_printf(LOG_ERR, "%s: is NOT SED-OPAL compliant.\n", dev_path);
+	else
+		sedcli_printf(LOG_ERR, "%s: Error obtaining device info.\n", dev_path);
+}
+
+
+#define SED_ENABLE "ENABLED"
+#define SED_DISABLE "DISABLED"
+
+char *DEV_SED_COMPATIBLE;
+
+static void sed_discv_print_udev(int err)
+{
+	if (!err)
+		DEV_SED_COMPATIBLE = SED_ENABLE;
+	else
+		DEV_SED_COMPATIBLE = SED_DISABLE;
+
+	sedcli_printf(LOG_INFO, "DEV_SED_COMPATIBLE: %s\n", DEV_SED_COMPATIBLE);
+}
+
+static int handle_sed_discv(void)
+{
+	int ret = 0;
+
+	#ifdef CONFIG_OPAL_DRIVER
+	sedcli_printf(LOG_ERR, "Command NOT supported for OPAL interface.\n");
+	ret = -EOPNOTSUPP;
+	#else
+	struct sed_device *dev = NULL;
+
+	ret = sed_init(&dev, opts->dev_path);
+
+	switch(opts->print_fmt) {
+	case SED_NORMAL:
+		sed_discv_print_normal(ret, opts->dev_path);
+		break;
+	case SED_UDEV:
+		sed_discv_print_udev(ret);
+		break;
+	default:
+		sedcli_printf(LOG_ERR, "Invalid format provided\n");
+		ret = -EINVAL;
+		break;
+	}
+
+	sed_deinit(dev);
+	#endif
+
+	return ret;
 }
 
 static int handle_ownership(void)
@@ -586,8 +689,11 @@ int main(int argc, char *argv[])
 
 	if (opts == NULL) {
 		sedcli_printf(LOG_ERR, "Failed to allocated memory\n");
-		return -1;
+		return -ENOMEM;
 	}
+
+	/* Set the print format to Normal by default */
+	opts->print_fmt = SED_NORMAL;
 
 	status = mlock(opts, sizeof(*opts));
 	if (status != 0) {
