@@ -26,6 +26,7 @@
 
 extern sedcli_printf_t sedcli_printf;
 
+static int sed_discv_handle_opts(char *opt, char **arg);
 static int ownership_handle_opts(char *opt, char **arg);
 static int activatelsp_handle_opts(char*opt, char **arg);
 static int reverttper_handle_opts(char *opt, char **arg);
@@ -33,6 +34,7 @@ static int lock_unlock_handle_opts(char *opt, char **arg);
 static int setup_global_range_handle_opts(char *opt, char **arg);
 static int setpw_handle_opts(char *opt, char **arg);
 
+static int handle_sed_discv(void);
 static int handle_ownership(void);
 static int handle_version(void);
 static int handle_help(void);
@@ -44,6 +46,12 @@ static int handle_setpw(void);
 
 static void echo_enable();
 static void echo_disable();
+
+static cli_option sed_discv_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'f', "format", "Output format: {normal|udev}", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	{0}
+};
 
 static cli_option ownership_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -78,6 +86,17 @@ static cli_option setpw_opts[] = {
 };
 
 static cli_command sedcli_commands[] = {
+	{
+		.name = "discovery",
+		.short_name = 'D',
+		.desc = "Performs SED level0 discovery(works only with NVMe passthru mechanism)",
+		.long_desc = "Performs SED level0 discovery and provides basic info about the device(works only with NVMe passthru mechanism)",
+		.options = sed_discv_opts,
+		.command_handle_opts = sed_discv_handle_opts,
+		.handle = handle_sed_discv,
+		.flags = 0,
+		.help = NULL
+	},
 	{
 		.name = "ownership",
 		.short_name = 'O',
@@ -177,6 +196,7 @@ struct sedcli_options {
 	struct sed_key old_pwd;
 	int psid;
 	int lock_type;
+	int print_fmt;
 };
 
 static struct sedcli_options *opts = NULL;
@@ -199,6 +219,39 @@ static void echo_enable()
 	tcsetattr(1, 0, &term);
 }
 
+enum sed_print_flags {
+	SED_NORMAL,
+	SED_UDEV,
+};
+
+enum sed_print_flags val_output_fmt(const char *fmt)
+{
+	if (!fmt)
+		return -EINVAL;
+	if (!strcmp(fmt, "normal"))
+		return SED_NORMAL;
+	if (!strcmp(fmt, "udev"))
+		return SED_UDEV;
+	return -EINVAL;
+}
+
+int fmt_flag = 0;
+int sed_discv_handle_opts(char *opt, char **arg)
+{
+	if (fmt_flag == 0) {
+		/* Set the print format to Normal by default */
+		opts->print_fmt = SED_NORMAL;
+	}
+
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "format")) {
+		opts->print_fmt = val_output_fmt(arg[0]);
+		fmt_flag = 1;
+	}
+
+	return 0;
+}
 
 int ownership_handle_opts(char *opt, char **arg)
 {
@@ -347,6 +400,118 @@ static void print_sed_status(int status)
 			sedcli_printf((status == SED_SUCCESS) ? LOG_INFO : LOG_ERR,
 					"%s\n", sed_status);
 	}
+}
+
+static void sed_discv_print_normal(struct sed_opal_level0_discovery *discv, const char *dev_path)
+{
+	uint16_t base_comid = be16toh(discv->sed_opalv200.base_comid);
+
+	if (!base_comid) {
+		sedcli_printf(LOG_INFO, "Invalid disk, %s is NOT SED-OPAL Compliant\n", dev_path);
+		return;
+	} else {
+		/* Printing the TPer Features */
+		sedcli_printf(LOG_INFO, "\nSED TPER FEATURES SUPPORTED:\n");
+		sedcli_printf(LOG_INFO, "\tSYNC_SUPP       : %s\n", discv->sed_tper.sync_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tASYNC_SUPP      : %s\n", discv->sed_tper.async_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tACK_NAK_SUPP    : %s\n", discv->sed_tper.ack_nak_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tBUFF_MGMT_SUPP  : %s\n", discv->sed_tper.buff_mgmt_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tSTREAM_SUPP     : %s\n", discv->sed_tper.stream_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tCOMID_MGMT_SUPP : %s\n", discv->sed_tper.comid_mgmt_supp ? "Y" : "N");
+
+		/* Printing the Locking Feature */
+		sedcli_printf(LOG_INFO, "\nSED LOCKING FEATURES SUPPORTED: \n");
+		sedcli_printf(LOG_INFO, "\tLOCKING_SUPP : %s\n", discv->sed_locking.locking_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tLOCKING_EN   : %s\n", discv->sed_locking.locking_en ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tLOCKED       : %s\n", discv->sed_locking.locked ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tMEDIA_ENC    : %s\n", discv->sed_locking.media_enc ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tMBR_EN       : %s\n", discv->sed_locking.mbr_en ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tMBR_DONE     : %s\n", discv->sed_locking.mbr_done ? "Y" : "N");
+
+		/* Printing Opalv200 Features */
+		sedcli_printf(LOG_INFO, "\nSED Opalv200 FEATURES SUPPORTED: \n");
+		sedcli_printf(LOG_INFO, "\tBASE_COMID        : %d\n", be16toh(discv->sed_opalv200.base_comid));
+		sedcli_printf(LOG_INFO, "\tCOMID_NUM         : %d\n", be16toh(discv->sed_opalv200.comid_num));
+		sedcli_printf(LOG_INFO, "\tADMIN_LP_AUTH_NUM : %d\n", be16toh(discv->sed_opalv200.admin_lp_auth_num));
+		sedcli_printf(LOG_INFO, "\tUSER_LP_AUTH_NUM  : %d\n\n", be16toh(discv->sed_opalv200.user_lp_auth_num));
+	}
+}
+
+#define SED_ENABLE "ENABLED"
+#define SED_DISABLE "DISABLED"
+
+char *DEV_SED_COMPATIBLE;
+char *DEV_SED_LOCKED;
+
+static void sed_discv_print_udev(struct sed_opal_level0_discovery *discv)
+{
+	bool locking_enabled;
+	uint16_t comid;
+
+	locking_enabled = discv->sed_locking.locking_en ? true : false;
+	comid = discv->sed_opalv200.base_comid;
+
+	if (!comid)
+		DEV_SED_COMPATIBLE = SED_DISABLE;
+	else
+		DEV_SED_COMPATIBLE = SED_ENABLE;
+
+	if (locking_enabled)
+		DEV_SED_LOCKED = SED_ENABLE;
+	else
+		DEV_SED_LOCKED = SED_DISABLE;
+
+	sedcli_printf(LOG_INFO, "DEV_SED_COMPATIBLE=%s\n", DEV_SED_COMPATIBLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKED=%s\n", DEV_SED_LOCKED);
+}
+
+static int handle_sed_discv(void)
+{
+	int ret = 0;
+	struct sed_device *dev = NULL;
+	struct sed_opal_level0_discovery *discv = NULL;
+
+	ret = sed_init(&dev, opts->dev_path);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error initializing device\n", opts->dev_path);
+		return -EINVAL;
+	}
+
+	discv = malloc(sizeof(*discv));
+	if (discv == NULL) {
+		sedcli_printf(LOG_ERR, "Memory not allocated.\n");
+		ret = -ENOMEM;
+		goto init_deinit;
+	}
+
+	ret = sed_level0_discovery(discv);
+	if (ret) {
+		if (ret == -EOPNOTSUPP)
+			sedcli_printf(LOG_ERR, "Command NOT supported for this interface.\n");
+		goto deinit;
+	}
+
+	switch(opts->print_fmt) {
+	case SED_NORMAL:
+		sed_discv_print_normal(discv, opts->dev_path);
+		ret = 0;
+		break;
+	case SED_UDEV:
+		sed_discv_print_udev(discv);
+		ret = 0;
+		break;
+	default:
+		sedcli_printf(LOG_ERR, "Invalid format provided\n");
+		ret = -EINVAL;
+		break;
+	}
+
+deinit:
+	free(discv);
+init_deinit:
+	sed_deinit(dev);
+
+	return ret;
 }
 
 static int handle_ownership(void)
@@ -586,7 +751,7 @@ int main(int argc, char *argv[])
 
 	if (opts == NULL) {
 		sedcli_printf(LOG_ERR, "Failed to allocated memory\n");
-		return -1;
+		return -ENOMEM;
 	}
 
 	status = mlock(opts, sizeof(*opts));

@@ -182,38 +182,48 @@ enum opaltoken {
 	OPAL_WHERE = 0x00,
 };
 
+struct tper_supported_feat {
+	uint8_t sync_supp :1;
+	uint8_t async_supp :1;
+	uint8_t ack_nak_supp :1;
+	uint8_t buff_mgmt_supp :1;
+	uint8_t stream_supp :1;
+	uint8_t reserved1 :1;
+	uint8_t comid_mgmt_supp :1;
+	uint8_t reserved2:1;
+} __attribute__((__packed__));
+
+struct locking_supported_feat {
+	uint8_t locking_supp:1;
+	uint8_t locking_en:1;
+	uint8_t locked:1;
+	uint8_t media_enc:1;
+	uint8_t mbr_en:1;
+	uint8_t mbr_done:1;
+	uint8_t reserved:2;
+} __attribute__((__packed__));
+
+struct opalv200_supported_feat {
+	uint16_t base_comid;
+	uint16_t comid_num;
+	uint8_t reserved1;
+	uint16_t admin_lp_auth_num;
+	uint16_t user_lp_auth_num;
+	uint8_t reserved2[7];
+} __attribute__((__packed__));
+
 struct opal_l0_feat {
 	int type;
 	union {
 		struct {
-			struct {
-				uint8_t sync_supp :1;
-				uint8_t async_supp :1;
-				uint8_t ack_nak_supp :1;
-				uint8_t buff_mgmt_supp :1;
-				uint8_t stream_supp :1;
-				uint8_t reserved1 :1;
-				uint8_t comid_mgmt_supp :1;
-				uint8_t reserved2 :1;
-			} flags;
+			struct tper_supported_feat flags;
 		} tper;
-		struct {
-			struct {
-				uint8_t locking_supp:1;
-				uint8_t locking_en:1;
-				uint8_t locked:1;
-				uint8_t media_enc:1;
-				uint8_t mbr_en:1;
-				uint8_t mbr_done:1;
-				uint8_t reserved:2;
-			} flags;
+
+		struct{
+			struct locking_supported_feat flags;
 		} locking;
-		struct {
-			uint16_t base_comid;
-			uint16_t comid_num;
-			uint16_t admin_lp_auth_num;
-			uint16_t user_lp_auth_num;
-		} opalv200;
+
+		struct opalv200_supported_feat opalv200;
 	} feat;
 };
 
@@ -222,7 +232,7 @@ struct opal_l0_disc {
 	uint32_t rev;
 	uint16_t comid;
 	struct opal_l0_feat feats[MAX_FEATURES];
-} __attribute__((__packed__)) ;
+} __attribute__((__packed__));
 
 
 struct opal_level0_header {
@@ -239,38 +249,16 @@ struct opal_level0_feat_desc {
 	uint8_t len;
 	union {
 		struct {
-			struct {
-				uint8_t sync_supp:1;
-				uint8_t async_supp:1;
-				uint8_t ack_nak_supp:1;
-				uint8_t buff_mgmt_supp:1;
-				uint8_t stream_supp:1;
-				uint8_t reserved1:1;
-				uint8_t comid_mgmt_supp:1;
-				uint8_t reserved2:1;
-			} __attribute__((__packed__)) flags;
+			struct tper_supported_feat flags;
 			uint8_t reserved[11];
 		} __attribute__((__packed__)) tper;
+
 		struct {
-			struct {
-				uint8_t locking_supp:1;
-				uint8_t locking_en:1;
-				uint8_t locked:1;
-				uint8_t media_enc:1;
-				uint8_t mbr_en:1;
-				uint8_t mbr_done:1;
-				uint8_t reserved:2;
-			} __attribute__((__packed__)) flags;
+			struct locking_supported_feat flags;
 			uint8_t reserved[11];
 		} __attribute__((__packed__)) locking;
-		struct {
-			uint16_t base_comid;
-			uint16_t comid_num;
-			uint8_t reserved1;
-			uint16_t admin_lp_auth_num;
-			uint16_t user_lp_auth_num;
-			uint8_t reserved2[7];
-		} __attribute__((__packed__)) opalv200;
+
+		struct opalv200_supported_feat opalv200;
 	} feat;
 } __attribute__((__packed__)) ;
 
@@ -307,9 +295,16 @@ struct opal_header {
 	uint8_t payload[];
 } __attribute__((__packed__));
 
+struct opal_level0_discovery {
+	struct tper_supported_feat tper;
+	struct locking_supported_feat locking;
+	struct opalv200_supported_feat opalv200;
+};
 
 int opal_init_pt(struct sed_device *dev,
 		const char *device_path);
+
+void opal_level0_discv_info_pt(struct sed_opal_level0_discovery *discvry);
 
 int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key);
 
