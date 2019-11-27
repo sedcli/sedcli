@@ -1,4 +1,4 @@
-# sedcli and libsed
+# sedcli and libsed overview
 
 TCG Opal is an industry standard allowing Self-Encrypting Drives management,
 i.e. enable locking, configuring users, locking ranges etc.
@@ -10,7 +10,7 @@ Opal complaint.
 
 ## Getting started
 
-In order to get started use following steps (<sedcli> denotes top level
+In order to get started use following steps (\<sedcli\> denotes top level
 directory for sedcli):
 
 ```
@@ -32,6 +32,18 @@ sedcli -H
 man sedcli
 
 ```
+For more information goto [doc](doc) directory.
+
+## Features
+
+* Interactive management of NVMe SED allowing to: configure locking, change
+lock state, revert disk back to manafactured state
+* Coming soon: auto management with disk key being retrieved from network
+attached Key Management Server that is OASIS KMIP complaint
+
+## Talks and papers
+
+* SNIA SDC 2019: [Data at Rest Protection at Scale with NVMe and Opal](https://www.youtube.com/watch?v=5mmJlNplcAY)
 
 ## Contributing
 
@@ -41,3 +53,13 @@ We encourage contributions! Patches are accepted via pull request:
 * Patches must be signedoff by the developer. This indicates that submitter
 agrees to the **Developer Certificate of Origin**
 [DCO](https://developercertificate.org)
+
+## Maintainers
+
+* Andrzej Jakowski <andrzej.jakowski@intel.com>; 
+github [@AndrzejJakowski](https://github.com/AndrzejJakowski)
+* Revanth Rajashekar <revanth.rajashekar@intel.com>; 
+github [@RevanthRajashekar](https://github.com/RevanthRajashekar)
+
+Feel free to contact us anytime with questions, feedback or suggestions.
+We would love to hear how you see sedcli going forward.
