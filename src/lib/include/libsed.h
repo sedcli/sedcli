@@ -21,6 +21,42 @@ enum SED_ACCESS_TYPE {
 
 struct sed_device;
 
+struct sed_tper_supported_feat {
+	uint8_t sync_supp :1;
+	uint8_t async_supp :1;
+	uint8_t ack_nak_supp :1;
+	uint8_t buff_mgmt_supp :1;
+	uint8_t stream_supp :1;
+	uint8_t reserved1 :1;
+	uint8_t comid_mgmt_supp :1;
+	uint8_t reserved2:1;
+} __attribute__((__packed__));
+
+struct sed_locking_supported_feat {
+	uint8_t locking_supp:1;
+	uint8_t locking_en:1;
+	uint8_t locked:1;
+	uint8_t media_enc:1;
+	uint8_t mbr_en:1;
+	uint8_t mbr_done:1;
+	uint8_t reserved:2;
+} __attribute__((__packed__));
+
+struct sed_opalv200_supported_feat {
+	uint16_t base_comid;
+	uint16_t comid_num;
+	uint8_t reserved1;
+	uint16_t admin_lp_auth_num;
+	uint16_t user_lp_auth_num;
+	uint8_t reserved2[7];
+} __attribute__((__packed__));
+
+struct sed_opal_level0_discovery {
+	struct sed_tper_supported_feat sed_tper;
+	struct sed_locking_supported_feat sed_locking;
+	struct sed_opalv200_supported_feat sed_opalv200;
+};
+
 struct sed_key {
 	uint8_t key[SED_MAX_KEY_LEN];
 	uint8_t len;
@@ -56,6 +92,11 @@ enum sed_status {
  * operation.
  */
 int sed_init(struct sed_device **dev, const char *dev_path);
+
+/**
+ *
+ */
+int sed_level0_discovery(struct sed_opal_level0_discovery *discv);
 
 /**
  *

@@ -17,6 +17,7 @@
 #define ARRAY_SIZE(x) ((size_t)(sizeof(x) / sizeof(x[0])))
 
 typedef int (*init)(struct sed_device *, const char *);
+typedef void (*lvl0_discv) (struct sed_opal_level0_discovery *discv);
 typedef int (*take_ownership)(struct sed_device *, const struct sed_key *);
 typedef int (*reverttper)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*activate_lsp)(struct sed_device *, const struct sed_key *,
@@ -46,6 +47,7 @@ typedef void (*deinit)(struct sed_device *);
 
 struct opal_interface {
 	init init_fn;
+	lvl0_discv lvl0_discv_fn;
 	take_ownership ownership_fn;
 	reverttper revert_fn;
 	revertsp revertsp_fn;
@@ -71,6 +73,7 @@ struct opal_interface {
 #ifdef CONFIG_OPAL_DRIVER
 static struct opal_interface opal_if = {
 	.init_fn = sedopal_init,
+	.lvl0_discv_fn = NULL,
 	.ownership_fn = sedopal_takeownership,
 	.revert_fn = sedopal_reverttper,
 	.activatelsp_fn = sedopal_activatelsp,
@@ -95,6 +98,7 @@ static struct opal_interface opal_if = {
 #else
 static struct opal_interface opal_if = {
 	.init_fn	= opal_init_pt,
+	.lvl0_discv_fn	= opal_level0_discv_info_pt,
 	.ownership_fn	= opal_takeownership_pt,
 	.revert_fn	= opal_reverttper_pt,
 	.activatelsp_fn	= opal_activate_lsp_pt,
@@ -167,6 +171,16 @@ int sed_init(struct sed_device **dev, const char *dev_path)
 
 	*dev = ret;
 	return status;
+}
+
+int  sed_level0_discovery(struct sed_opal_level0_discovery *discv)
+{
+	if (curr_if->lvl0_discv_fn == NULL)
+		return -EOPNOTSUPP;
+
+	curr_if->lvl0_discv_fn(discv);
+
+	return 0;
 }
 
 void sed_deinit(struct sed_device *dev)

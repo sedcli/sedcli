@@ -51,6 +51,8 @@ struct opal_device {
 	} session;
 };
 
+struct opal_level0_discovery *discv = NULL;
+
 static uint8_t opal_uid[][OPAL_UID_LENGTH] = {
 	[OPAL_SM_UID] =
 		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff },
@@ -173,6 +175,21 @@ struct opal_req_item {
 	} val;
 };
 
+static void check_tper_feat(void *feat)
+{
+	memcpy(&discv->tper, (struct tper_supported_feat *)feat, sizeof(struct tper_supported_feat));
+}
+
+static void check_locking_feat(void *feat)
+{
+	memcpy(&discv->locking, (struct locking_supported_feat *)feat, sizeof(struct locking_supported_feat));
+}
+
+static void check_opalv200_feat(void *feat)
+{
+	memcpy(&discv->opalv200, (struct opalv200_supported_feat *)feat, sizeof(struct opalv200_supported_feat));
+}
+
 static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 {
 	struct opal_l0_feat *curr_feat;
@@ -219,12 +236,14 @@ static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 		case OPAL_FEAT_TPER:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			check_tper_feat(&desc->feat.tper.flags);
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_LOCKING:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			check_locking_feat(&desc->feat.locking.flags);
 
 			feat_no++;
 			break;
@@ -255,16 +274,10 @@ static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 		case OPAL_FEAT_OPALV200:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			check_opalv200_feat(&desc->feat.opalv200);
 
 			curr_feat->feat.opalv200.base_comid =
 				be16toh(desc->feat.opalv200.base_comid);
-			curr_feat->feat.opalv200.comid_num =
-				be16toh(desc->feat.opalv200.comid_num);
-			curr_feat->feat.opalv200.admin_lp_auth_num =
-				be16toh(desc->feat.opalv200.admin_lp_auth_num);
-			curr_feat->feat.opalv200.user_lp_auth_num =
-				be16toh(desc->feat.opalv200.user_lp_auth_num);
-
 			disc_data->comid = curr_feat->feat.opalv200.base_comid;
 
 			feat_no++;
@@ -290,6 +303,10 @@ void opal_deinit_pt(struct sed_device *dev)
 	if (dev->priv != NULL) {
 		free(dev->priv);
 		dev->priv = NULL;
+	}
+
+	if (discv != NULL) {
+		free(discv);
 	}
 
 	opal_parser_deinit();
@@ -327,6 +344,12 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 	opal_dev->session.tsn = 0;
 	opal_dev->session.hsn = 0;
 
+	discv = malloc(sizeof(*discv));
+	if (discv == NULL) {
+		SEDCLI_DEBUG_MSG("Unable to allocate memory.\n");
+		return -ENOMEM;
+	}
+
 	ret = opal_level0_disc_pt(dev->fd, dev->priv);
 	if (ret) {
 		opal_deinit_pt(dev);
@@ -335,6 +358,11 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 	SEDCLI_DEBUG_PARAM("The device comid is: %u\n", opal_dev->comid);
 
 	return ret;
+}
+
+void opal_level0_discv_info_pt(struct sed_opal_level0_discovery *discvry)
+{
+	memcpy(discvry, (struct sed_opal_level0_discovery *)discv, sizeof(*discvry));
 }
 
 static void init_req(struct opal_device *dev)
