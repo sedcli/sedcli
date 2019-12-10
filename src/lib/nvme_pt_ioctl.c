@@ -185,6 +185,21 @@ static void check_locking_feat(void *feat)
 	memcpy(&discv->locking, (struct locking_supported_feat *)feat, sizeof(struct locking_supported_feat));
 }
 
+static void check_geometry_feat(void *feat)
+{
+	memcpy(&discv->geo, (struct geometry_supported_feat *)feat, sizeof(struct geometry_supported_feat));
+}
+
+static void check_datastr_feat(void *feat)
+{
+	memcpy(&discv->datastr, (struct datastr_table_supported_feat *)feat, sizeof(struct datastr_table_supported_feat));
+}
+
+static void check_opalv100_feat(void *feat)
+{
+	memcpy(&discv->opalv100, (struct opalv100_supported_feat *)feat, sizeof(struct opalv100_supported_feat));
+}
+
 static void check_opalv200_feat(void *feat)
 {
 	memcpy(&discv->opalv200, (struct opalv200_supported_feat *)feat, sizeof(struct opalv200_supported_feat));
@@ -250,12 +265,14 @@ static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 		case OPAL_FEAT_GEOMETRY:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			check_geometry_feat(&desc->feat.geo);
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_DATASTORE:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			check_datastr_feat(&desc->feat.datastr.datastr_tbl);
 
 			feat_no++;
 			break;
@@ -268,6 +285,7 @@ static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 		case OPAL_FEAT_OPALV100:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			check_opalv100_feat(&desc->feat.opalv100);
 
 			feat_no++;
 			break;

@@ -411,29 +411,54 @@ static void sed_discv_print_normal(struct sed_opal_level0_discovery *discv, cons
 		return;
 	} else {
 		/* Printing the TPer Features */
-		sedcli_printf(LOG_INFO, "\nSED TPER FEATURES SUPPORTED:\n");
-		sedcli_printf(LOG_INFO, "\tSYNC_SUPP       : %s\n", discv->sed_tper.sync_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tASYNC_SUPP      : %s\n", discv->sed_tper.async_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tACK_NAK_SUPP    : %s\n", discv->sed_tper.ack_nak_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tBUFF_MGMT_SUPP  : %s\n", discv->sed_tper.buff_mgmt_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tSTREAM_SUPP     : %s\n", discv->sed_tper.stream_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tCOMID_MGMT_SUPP : %s\n", discv->sed_tper.comid_mgmt_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\nSED TPER FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tSync Supported        : %s\n", discv->sed_tper.sync_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tAsync Supported       : %s\n", discv->sed_tper.async_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tACK/NAK Supported     : %s\n", discv->sed_tper.ack_nak_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tBuffer Mgmt Supported : %s\n", discv->sed_tper.buff_mgmt_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tStreaming Supported   : %s\n", discv->sed_tper.stream_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tComID Mgmt Supported  : %s\n", discv->sed_tper.comid_mgmt_supp ? "Y" : "N");
 
 		/* Printing the Locking Feature */
-		sedcli_printf(LOG_INFO, "\nSED LOCKING FEATURES SUPPORTED: \n");
-		sedcli_printf(LOG_INFO, "\tLOCKING_SUPP : %s\n", discv->sed_locking.locking_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tLOCKING_EN   : %s\n", discv->sed_locking.locking_en ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tLOCKED       : %s\n", discv->sed_locking.locked ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tMEDIA_ENC    : %s\n", discv->sed_locking.media_enc ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tMBR_EN       : %s\n", discv->sed_locking.mbr_en ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tMBR_DONE     : %s\n", discv->sed_locking.mbr_done ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\nSED LOCKING FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tLocking Supported : %s\n", discv->sed_locking.locking_supp ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tLocking Enabled   : %s\n", discv->sed_locking.locking_en ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tLocked            : %s\n", discv->sed_locking.locked ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tMedia Encryption  : %s\n", discv->sed_locking.media_enc ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tMBR Enabled       : %s\n", discv->sed_locking.mbr_en ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tMBR Done          : %s\n", discv->sed_locking.mbr_done ? "Y" : "N");
+
+		/* Printing Geometry Supported Features*/
+		sedcli_printf(LOG_INFO, "\nSED GEOMETRY FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tALIGN                 : %s\n", discv->sed_geo.rsvd_align.align ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tLogica Block Size     : %d\n", be32toh(discv->sed_geo.logical_blk_sz));
+		sedcli_printf(LOG_INFO, "\tAlignment Granularity : %ld\n", be64toh(discv->sed_geo.alignmnt_granlrty));
+		sedcli_printf(LOG_INFO, "\tLowest Aligned LBA    : %ld\n",  be64toh(discv->sed_geo.lowest_aligned_lba));
+
+		/* Printing Datastore Fetaures */
+		sedcli_printf(LOG_INFO, "\nSED DATASTORE FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tMax DataStore tables       : %d\n", be16toh(discv->sed_datastr.max_num_datastr_tbls));
+		sedcli_printf(LOG_INFO, "\tMax size DataStore tables  : %d\n", be32toh(discv->sed_datastr.max_total_size_datstr_tbls));
+		sedcli_printf(LOG_INFO, "\tDataStore table size align : %d\n", be32toh(discv->sed_datastr.datastr_tbl_size_align));
+
+		/* Printing Opalv100 Features */
+		if (!be16toh(discv->sed_opalv100.v1_base_comid))
+			sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES NOT SUPPORTED\n");
+		else {
+			sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES SUPPORTED\n");
+			sedcli_printf(LOG_INFO, "\tBase ComID       : %d\n", be16toh(discv->sed_opalv100.v1_base_comid));
+			sedcli_printf(LOG_INFO, "\tNumber of ComIDs : %d\n", be16toh(discv->sed_opalv100.v1_comid_num));
+		}
 
 		/* Printing Opalv200 Features */
-		sedcli_printf(LOG_INFO, "\nSED Opalv200 FEATURES SUPPORTED: \n");
-		sedcli_printf(LOG_INFO, "\tBASE_COMID        : %d\n", be16toh(discv->sed_opalv200.base_comid));
-		sedcli_printf(LOG_INFO, "\tCOMID_NUM         : %d\n", be16toh(discv->sed_opalv200.comid_num));
-		sedcli_printf(LOG_INFO, "\tADMIN_LP_AUTH_NUM : %d\n", be16toh(discv->sed_opalv200.admin_lp_auth_num));
-		sedcli_printf(LOG_INFO, "\tUSER_LP_AUTH_NUM  : %d\n\n", be16toh(discv->sed_opalv200.user_lp_auth_num));
+		sedcli_printf(LOG_INFO, "\nSED Opal v.200 FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(discv->sed_opalv200.base_comid));
+		sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(discv->sed_opalv200.comid_num));
+		sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %s\n", discv->sed_opalv200.rangecross_rsvd.range_crossing ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(discv->sed_opalv200.admin_lp_auth_num));
+		sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(discv->sed_opalv200.user_lp_auth_num));
+		sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", discv->sed_opalv200.init_pin);
+		sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n\n", discv->sed_opalv200.revert_pin);
 	}
 }
 
