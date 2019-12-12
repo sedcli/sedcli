@@ -42,18 +42,48 @@ struct sed_locking_supported_feat {
 	uint8_t reserved:2;
 } __attribute__((__packed__));
 
+struct sed_geometry_supported_feat {
+	struct {
+		uint8_t align:1;
+		uint8_t rsvd1:7;
+	} __attribute__((__packed__)) rsvd_align;
+	uint8_t rsvd2[7];
+	uint32_t logical_blk_sz;
+	uint64_t alignmnt_granlrty;
+	uint64_t lowest_aligned_lba;
+} __attribute__((__packed__));
+
+struct sed_datastr_table_supported_feat {
+	uint16_t max_num_datastr_tbls;
+	uint32_t max_total_size_datstr_tbls;
+	uint32_t datastr_tbl_size_align;
+} __attribute__((__packed__));
+
+struct sed_opalv100_supported_feat {
+	uint16_t v1_base_comid;
+	uint16_t v1_comid_num;
+} __attribute__((__packed__));
+
 struct sed_opalv200_supported_feat {
 	uint16_t base_comid;
 	uint16_t comid_num;
-	uint8_t reserved1;
+	struct {
+		uint8_t range_crossing:1;
+		uint8_t rsvd1:7;
+	} __attribute__((__packed__)) rangecross_rsvd;
 	uint16_t admin_lp_auth_num;
 	uint16_t user_lp_auth_num;
-	uint8_t reserved2[7];
+	uint8_t init_pin;
+	uint8_t revert_pin;
+	uint8_t reserved2[5];
 } __attribute__((__packed__));
 
 struct sed_opal_level0_discovery {
 	struct sed_tper_supported_feat sed_tper;
 	struct sed_locking_supported_feat sed_locking;
+	struct sed_geometry_supported_feat sed_geo;
+	struct sed_datastr_table_supported_feat sed_datastr;
+	struct sed_opalv100_supported_feat sed_opalv100;
 	struct sed_opalv200_supported_feat sed_opalv200;
 };
 
