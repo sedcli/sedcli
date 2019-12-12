@@ -430,8 +430,8 @@ static void sed_discv_print_normal(struct sed_opal_level0_discovery *discv, cons
 
 		/* Printing Geometry Supported Features*/
 		sedcli_printf(LOG_INFO, "\nSED GEOMETRY FEATURES SUPPORTED\n");
-		sedcli_printf(LOG_INFO, "\tALIGN                 : %s\n", discv->sed_geo.rsvd_align.align ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tLogica Block Size     : %d\n", be32toh(discv->sed_geo.logical_blk_sz));
+		sedcli_printf(LOG_INFO, "\tAlignment required    : %s\n", discv->sed_geo.rsvd_align.align ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tLogical Block Size    : %d\n", be32toh(discv->sed_geo.logical_blk_sz));
 		sedcli_printf(LOG_INFO, "\tAlignment Granularity : %ld\n", be64toh(discv->sed_geo.alignmnt_granlrty));
 		sedcli_printf(LOG_INFO, "\tLowest Aligned LBA    : %ld\n",  be64toh(discv->sed_geo.lowest_aligned_lba));
 
@@ -451,10 +451,10 @@ static void sed_discv_print_normal(struct sed_opal_level0_discovery *discv, cons
 		}
 
 		/* Printing Opalv200 Features */
-		sedcli_printf(LOG_INFO, "\nSED Opal v.200 FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\nSED Opal v2.00 FEATURES SUPPORTED\n");
 		sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(discv->sed_opalv200.base_comid));
 		sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(discv->sed_opalv200.comid_num));
-		sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %s\n", discv->sed_opalv200.rangecross_rsvd.range_crossing ? "Y" : "N");
+		sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", discv->sed_opalv200.rangecross_rsvd.range_crossing ? 0 : 1);
 		sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(discv->sed_opalv200.admin_lp_auth_num));
 		sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(discv->sed_opalv200.user_lp_auth_num));
 		sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", discv->sed_opalv200.init_pin);
