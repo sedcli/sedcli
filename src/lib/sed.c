@@ -42,7 +42,8 @@ typedef int (*ds_admin_write)(struct sed_device *, const char *, uint8_t, const 
 typedef int (*ds_admin_read)(struct sed_device *, const char *, uint8_t, uint8_t *, uint32_t, uint32_t);
 typedef int (*ds_anybody_read)(struct sed_device *, uint8_t *, uint32_t, uint32_t);
 typedef int (*ds_anybody_write)(struct sed_device *, uint8_t *, uint32_t, uint32_t);
-typedef int (*list_lr)(struct sed_device *, const char *, uint8_t);
+typedef int (*list_lr)(struct sed_device *, const struct sed_key *,
+		       struct sed_opal_lockingranges *);
 typedef void (*deinit)(struct sed_device *);
 
 struct opal_interface {
@@ -329,12 +330,13 @@ int sed_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key_
 	return curr_if->ds_add_anybody_get_fn(dev, key, key_len);
 }
 
-int sed_list_lr(struct sed_device *dev, const char *key, uint8_t key_len)
+int sed_list_lr(struct sed_device *dev, const struct sed_key *key,
+		struct sed_opal_lockingranges *lrs)
 {
 	if (curr_if->list_lr_fn == NULL)
 		return -EOPNOTSUPP;
 
-	return curr_if->list_lr_fn(dev, key, key_len);
+	return curr_if->list_lr_fn(dev, key, lrs);
 }
 
 const char *sed_error_text(int sed_status)

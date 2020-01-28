@@ -1580,10 +1580,9 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 	return ret;
 }
 
-static int list_lr(int fd, struct opal_device *dev)
+static int list_lr(int fd, struct opal_device *dev, struct sed_opal_lockingranges *lrs)
 {
 	int ret;
-	uint64_t num_ranges;
 	uint8_t uid[OPAL_UID_LENGTH];
 
 	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_INFO_TABLE_UID],
@@ -1591,12 +1590,16 @@ static int list_lr(int fd, struct opal_device *dev)
 	if (ret)
 		return ret;
 
-	num_ranges = dev->payload.tokens[4]->vals.uint + 1;
+	lrs->lr_num = dev->payload.tokens[4]->vals.uint + 1;
 	SEDCLI_DEBUG_PARAM("The number of ranges discovered is: %ld\n",
-			num_ranges);
+			lrs->lr_num);
+	if (lrs->lr_num > SED_OPAL_MAX_LRS) {
+		lrs->lr_num = SED_OPAL_MAX_LRS;
+	}
+
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
-	for (int i = 0; i < num_ranges; i++) {
+	for (int i = 0; i < lrs->lr_num; i++) {
 		ret = build_lr(uid, sizeof(uid), i);
 		if (ret) {
 			SEDCLI_DEBUG_MSG("Error building locking range\n");
@@ -1608,17 +1611,16 @@ static int list_lr(int fd, struct opal_device *dev)
 		if (ret)
 			return ret;
 
-		printf("\nLR: %d begins: %ld for: %ld\n", i,
-				dev->payload.tokens[4]->vals.uint,
-				dev->payload.tokens[8]->vals.uint);
-		printf("\tRLKEnabled  = %s\n", dev->payload.tokens[12]->vals.uint ?
-				"YES" : "NO");
-		printf("\tWLKEnabled  = %s\n", dev->payload.tokens[16]->vals.uint ?
-				"YES" : "NO");
-		printf("\tReadLocked  = %s\n", dev->payload.tokens[20]->vals.uint ?
-				"YES" : "NO");
-		printf("\tWriteLocked = %s\n", dev->payload.tokens[24]->vals.uint ?
-				"YES" : "NO");
+		struct sed_opal_lockingrange *lr = &lrs->lrs[i];
+
+		lr->lr_id = i;
+		lr->start = dev->payload.tokens[4]->vals.uint;
+		lr->length = dev->payload.tokens[8]->vals.uint;
+		lr->rle = dev->payload.tokens[12]->vals.uint;
+		lr->wle = dev->payload.tokens[16]->vals.uint;
+		lr->read_locked = dev->payload.tokens[20]->vals.uint;
+		lr->write_locked = dev->payload.tokens[24]->vals.uint;
+
 		opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 	}
 
@@ -2184,29 +2186,29 @@ end_sessn:
 	return ret;
 }
 
-int opal_list_lr_pt(struct sed_device *dev, const char *password, uint8_t key_len)
+int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
+		    struct sed_opal_lockingranges *lrs)
 {
-	struct sed_key disk_key;
 	struct opal_device *opal_dev;
 	int ret = 0;
 
-	if (password == NULL) {
+	if (key == NULL) {
 		SEDCLI_DEBUG_MSG("Must provide the password.\n");
+		return -EINVAL;
+	}
+
+	if (!lrs) {
+		SEDCLI_DEBUG_MSG("Must provide a valid destination pointer\n");
 		return -EINVAL;
 	}
 
 	opal_dev = dev->priv;
 
-	ret = sed_key_init(&disk_key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret)
 		goto end_sessn;
 
-	ret = list_lr(dev->fd, opal_dev);
+	ret = list_lr(dev->fd, opal_dev, lrs);
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);

@@ -13,6 +13,8 @@
 
 #define SED_MAX_KEY_LEN (32)
 
+#define SED_OPAL_MAX_LRS 9
+
 enum SED_ACCESS_TYPE {
 	SED_RO_ACCESS = 1 << 0,
 	SED_RW_ACCESS = 1 << 1,
@@ -90,6 +92,21 @@ struct sed_opal_level0_discovery {
 struct sed_key {
 	uint8_t key[SED_MAX_KEY_LEN];
 	uint8_t len;
+};
+
+struct sed_opal_lockingrange {
+	size_t start;
+	size_t length;
+	uint8_t lr_id:4;
+	uint8_t read_locked:1;
+	uint8_t write_locked:1;
+	uint8_t rle:1;
+	uint8_t wle:1;
+};
+
+struct sed_opal_lockingranges {
+	struct sed_opal_lockingrange lrs[SED_OPAL_MAX_LRS];
+	uint8_t lr_num;
 };
 
 enum sed_status {
@@ -184,6 +201,17 @@ int sed_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_g
  */
 int sed_setpw(struct sed_device *dev, const struct sed_key *old_key,
 		const struct sed_key *new_key);
+
+/**
+ * Get list of locking ranges.
+ * @param dev			the device to operate on
+ * @param key   		the Admin1 password
+ * @param lrs			array of discovered locking ranges
+ *
+ * @return OPAL_SUCCESS on success
+ */
+int sed_list_lr(struct sed_device *dev, const struct sed_key *key,
+                struct sed_opal_lockingranges *lrs);
 
 /**
  *
