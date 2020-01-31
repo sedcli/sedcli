@@ -186,9 +186,7 @@ int  sed_level0_discovery(struct sed_opal_level0_discovery *discv)
 void sed_deinit(struct sed_device *dev)
 {
 	if (dev != NULL) {
-		if (dev->fd)
-			curr_if->deinit_fn(dev);
-
+		curr_if->deinit_fn(dev);
 		memset(dev, 0, sizeof(*dev));
 		free(dev);
 	}
