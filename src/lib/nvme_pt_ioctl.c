@@ -316,6 +316,7 @@ void opal_deinit_pt(struct sed_device *dev)
 {
 	if (dev->fd != 0) {
 		close(dev->fd);
+		dev->fd = 0;
 	}
 
 	if (dev->priv != NULL) {
@@ -325,6 +326,7 @@ void opal_deinit_pt(struct sed_device *dev)
 
 	if (discv != NULL) {
 		free(discv);
+		discv = NULL;
 	}
 
 	opal_parser_deinit();

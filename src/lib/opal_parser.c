@@ -52,8 +52,10 @@ int opal_parser_init(void)
 
 void opal_parser_deinit(void)
 {
-	if (token_storage != NULL)
+	if (token_storage != NULL) {
 		free(token_storage);
+		token_storage = NULL;
+	}
 }
 
 static int append_short_atom_bytes_header(uint8_t *buf, size_t len, int data_len)

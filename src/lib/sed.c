@@ -187,9 +187,7 @@ void sed_deinit(struct sed_device *dev)
 {
 	if (dev != NULL) {
 		curr_if->deinit_fn(dev);
-
 		memset(dev, 0, sizeof(*dev));
-
 		free(dev);
 	}
 }
