@@ -41,6 +41,7 @@ endif
 
 OBJS = argp.o
 OBJS += sedcli_main.o
+OBJS += sedcli_util.o
 
 ALL_TARGETS = $(TARGET)-static $(TARGET)-dynamic
 
