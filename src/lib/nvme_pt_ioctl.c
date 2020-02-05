@@ -349,15 +349,17 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 	/* Initializing the parser list */
 	ret = opal_parser_init();
 	if (ret) {
-		opal_deinit_pt(dev);
 		SEDCLI_DEBUG_MSG("Error in initializing the parser list.\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto init_deinit;
 	}
 
 	opal_dev = malloc(sizeof(*opal_dev));
 	if (opal_dev == NULL) {
+		SEDCLI_DEBUG_MSG("Unable to allocate memory\n");
 		dev->priv = NULL;
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto init_deinit;
 	}
 	dev->priv = opal_dev;
 
@@ -366,16 +368,22 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 
 	discv = malloc(sizeof(*discv));
 	if (discv == NULL) {
-		SEDCLI_DEBUG_MSG("Unable to allocate memory.\n");
-		return -ENOMEM;
+		SEDCLI_DEBUG_MSG("Unable to allocate memory for discovery "\
+				 "structure.\n");
+		ret = -ENOMEM;
+		goto init_deinit;
 	}
 
 	ret = opal_level0_disc_pt(dev->fd, dev->priv);
 	if (ret) {
-		opal_deinit_pt(dev);
-		return -EINVAL;
+		ret = -EINVAL;
+		goto init_deinit;
 	}
 	SEDCLI_DEBUG_PARAM("The device comid is: %u\n", opal_dev->comid);
+
+init_deinit:
+	if(ret)
+		opal_deinit_pt(dev);
 
 	return ret;
 }
