@@ -141,6 +141,11 @@ int sed_key_init(struct sed_key *disk_key, const char *key, const uint8_t key_le
 /**
  *
  */
+int sed_get_msid_pin(struct sed_device *dev, struct sed_key *msid_pin);
+
+/**
+ *
+ */
 int sed_takeownership(struct sed_device *dev, const struct sed_key *key);
 
 /**

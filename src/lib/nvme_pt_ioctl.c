@@ -931,7 +931,7 @@ static int opal_generic_get_column(int fd, struct opal_device *dev, const uint8_
 	return opal_snd_rcv_cmd_parse_chk(fd, dev, false);
 }
 
-static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, size_t *key_len)
+static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, uint8_t *key_len)
 {
 	uint8_t jmp;
 	int ret = 0;
@@ -1635,11 +1635,33 @@ static int list_lr(int fd, struct opal_device *dev)
 	return 0;
 }
 
+int opal_get_msid_pin_pt(struct sed_device *dev, struct sed_key *msid_pin)
+{
+	struct opal_device *opal_dev;
+	int ret;
+
+	opal_dev = dev->priv;
+
+	memset(msid_pin, 0, sizeof(*msid_pin));
+
+	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_get_msid(dev->fd, opal_dev, msid_pin->key, &msid_pin->len);
+	if (ret)
+		goto end_sessn;
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
 int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key)
 {
 	struct opal_device *opal_dev;
 	int ret = 0;
-	size_t msid_pin_len = 0;
+	uint8_t msid_pin_len = 0;
 	uint8_t msid_pin[SED_MAX_KEY_LEN];
 
 	if (key == NULL) {
