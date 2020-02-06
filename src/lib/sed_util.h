@@ -16,19 +16,6 @@ enum SED_ACCESSTYPE {
 	SED_LK = 0x04, /* 1 << 2 */
 };
 
-enum sed_user {
-	SED_ADMIN1 = 0x0,
-	SED_USER1 = 0x01,
-	SED_USER2 = 0x02,
-	SED_USER3 = 0x03,
-	SED_USER4 = 0x04,
-	SED_USER5 = 0x05,
-	SED_USER6 = 0x06,
-	SED_USER7 = 0x07,
-	SED_USER8 = 0x08,
-	SED_USER9 = 0x09,
-};
-
 struct sed_device {
 	int fd;
 	void *priv;

@@ -251,13 +251,13 @@ int sedopal_shadowmbr(struct sed_device *dev, const char *password, uint8_t key_
 	return ioctl(fd, IOC_OPAL_ENABLE_DISABLE_MBR, &mbr);
 }
 
-int sedopal_setpw(struct sed_device *dev, const struct sed_key *old_key,
+int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key)
 {
 	struct opal_new_pw pw = { };
 	int fd = dev->fd;
 
-	if (old_key == NULL || new_key == NULL || old_key->len == 0 || new_key->len == 0) {
+	if (old_key == NULL || new_key == NULL || old_key->len == 0 || new_key->len == 0 || auth != SED_ADMIN) {
 		SEDCLI_DEBUG_MSG("Invalid arguments, please try again\n");
 		return -EINVAL;
 	}

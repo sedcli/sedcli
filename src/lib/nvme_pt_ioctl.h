@@ -375,7 +375,7 @@ int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
 int opal_lock_unlock_pt(struct sed_device *dev, const struct sed_key *key,
 		enum SED_ACCESS_TYPE lock_type);
 
-int opal_set_pwd_pt(struct sed_device *dev, const struct sed_key *old_key,
+int opal_set_pwd_pt(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key);
 
 int opal_shadow_mbr_pt(struct sed_device *dev, const char *password,
