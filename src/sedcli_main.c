@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <limits.h>
-#include <termios.h>
 #include <unistd.h>
 
 #include <sys/stat.h>
@@ -19,8 +18,11 @@
 #include <libsed.h>
 
 #include "argp.h"
+#include "sedcli_util.h"
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
+#define SED_MIN_KEY_LEN (8)
 
 #define SEDCLI_TITLE "Self-Encrypting Drive command line interface (sedcli)"
 
@@ -43,9 +45,6 @@ static int handle_reverttper(void);
 static int handle_lock_unlock(void);
 static int handle_setup_global_range(void);
 static int handle_setpw(void);
-
-static void echo_enable();
-static void echo_disable();
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -203,22 +202,6 @@ static struct sedcli_options *opts = NULL;
 
 static char *allowed_lock_type[] = {"RO", "RW", "LK"};
 
-static struct termios term;
-
-static void echo_disable()
-{
-	tcgetattr(1, &term);
-	term.c_cc[VMIN] = 1;
-	term.c_lflag &= ~(ECHO | ICANON);
-	tcsetattr(1, 0, &term);
-}
-
-static void echo_enable()
-{
-	term.c_lflag |= ECHO | ICANON;
-	tcsetattr(1, 0, &term);
-}
-
 enum sed_print_flags {
 	SED_NORMAL,
 	SED_UDEV,
@@ -326,56 +309,6 @@ int setpw_handle_opts(char *opt, char **arg)
 	}
 
 	return 0;
-}
-
-static int get_password(struct sed_key *pwd)
-{
-	size_t dest = SED_MAX_KEY_LEN + 2;
-	uint8_t temp[dest];
-	int ret, len;
-
-	echo_disable();
-
-	memset(temp, 0, dest);
-
-	if (fgets((char *) temp, dest, stdin) == NULL) {
-		sedcli_printf(LOG_INFO, "Error getting password\n");
-		ret = -EINVAL;
-		goto err;
-	}
-	sedcli_printf(LOG_INFO, "\n");
-
-	/*
-	 * The temp buffer is chosen to be 2-Bytes greater than the MAX_KEY_LEN
-	 * This helps to identify if the user is trying to exceed the MAX
-	 * allowable key_len, by checking for NULL or NEW-LINE character at index
-	 * dest-2. (Last Byte is always a NULL character as per the fgets functionality)
-	 */
-	if (temp[dest - 2] != '\n' && temp[dest - 2] != '\0') {
-		sedcli_printf(LOG_INFO, "Password too long..!!\n");
-		ret = -EINVAL;
-		goto err;
-	}
-
-	len = strnlen((char *)temp, SED_MAX_KEY_LEN);
-	if (temp[len - 1] == '\n') {
-		temp[len - 1] = '\0';
-		--len;
-		if (len == 0) {
-			sedcli_printf(LOG_INFO, "No password provided..!!\n");
-			ret = -EINVAL;
-			goto err;
-		}
-	}
-
-	pwd->len = len;
-	memcpy(pwd->key, temp, pwd->len);
-	ret = 0;
-
-err:
-	memset(temp, 0, dest);
-	echo_enable();
-	return ret;
 }
 
 static void print_sed_status(int status)
@@ -546,14 +479,14 @@ static int handle_ownership(void)
 
 	sedcli_printf(LOG_INFO, "New SID password: ");
 
-	ret = get_password(&opts->pwd);
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 	if (ret != 0) {
 		return -1;
 	}
 
 	sedcli_printf(LOG_INFO, "Repeat new SID password: ");
 
-	ret = get_password(&opts->repeated_pwd);
+	ret = get_password((char *) opts->repeated_pwd.key, &opts->repeated_pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 	if (ret != 0) {
 		return -1;
 	}
@@ -585,7 +518,7 @@ static int handle_activatelsp(void)
 
 	sedcli_printf(LOG_INFO, "Enter SID password: ");
 
-	ret = get_password(&opts->pwd);
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
@@ -613,7 +546,7 @@ static int handle_reverttper(void)
 
 	sedcli_printf(LOG_INFO, "Enter %s password: ", opts->psid ? "PSID" : "SID");
 
-	ret = get_password(&opts->pwd);
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
@@ -641,7 +574,7 @@ static int handle_lock_unlock(void)
 
 	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
 
-	ret = get_password(&opts->pwd);
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
@@ -669,7 +602,7 @@ static int handle_setup_global_range(void)
 
 	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
 
-	ret = get_password(&opts->pwd);
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
@@ -697,7 +630,7 @@ static int handle_setpw(void)
 
 	sedcli_printf(LOG_INFO, "Old Admin1 password: ");
 
-	ret = get_password(&opts->old_pwd);
+	ret = get_password((char *) opts->old_pwd.key, &opts->old_pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
@@ -705,7 +638,7 @@ static int handle_setpw(void)
 
 	sedcli_printf(LOG_INFO, "New Admin1 password: ");
 
-	ret = get_password(&opts->pwd);
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
@@ -713,7 +646,7 @@ static int handle_setpw(void)
 
 	sedcli_printf(LOG_INFO, "Repeat new Admin1 password: ");
 
-	ret = get_password(&opts->repeated_pwd);
+	ret = get_password((char *) opts->repeated_pwd.key, &opts->repeated_pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
 
 	if (ret != 0) {
 		return -1;
