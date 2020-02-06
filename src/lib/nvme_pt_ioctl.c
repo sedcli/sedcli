@@ -1552,7 +1552,7 @@ static struct opal_req_item opal_read_datastr_cmd[] = {
 static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uint64_t offset, uint64_t size)
 {
 	int ret = 0;
-	uint64_t len = 0, index = 0;
+	uint64_t len = 0, index = 0, end_row = size - 1;
 	uint8_t jmp;
 	size_t data_len;
 
@@ -1574,10 +1574,10 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 		return -EINVAL;
 	}
 
-	while (index < size) {
+	while (index < end_row) {
 		opal_read_datastr_cmd[3].val.uint = index + offset;
 
-		len = MIN(OPAL_MAX_READ_TABLE, (size - index));
+		len = MIN(OPAL_MAX_READ_TABLE, (end_row - index));
 		opal_read_datastr_cmd[7].val.uint = index + offset + len;
 
 		prepare_req_buf(dev, opal_read_datastr_cmd, ARRAY_SIZE(opal_read_datastr_cmd),
