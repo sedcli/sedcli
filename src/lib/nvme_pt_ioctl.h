@@ -398,7 +398,8 @@ int opal_ds_anybody_write(struct sed_device *, uint8_t *from, uint32_t size, uin
 
 int opal_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key_len);
 
-int opal_list_lr_pt(struct sed_device *dev, const char *password, uint8_t key_len);
+int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
+		    struct sed_opal_lockingranges *lrs);
 
 void opal_deinit_pt(struct sed_device *dev);
 
