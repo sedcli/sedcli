@@ -390,15 +390,11 @@ int opal_rw_datastr_tbl(struct sed_device *dev, const char *password,
 			uint8_t key_len, const uint64_t data, uint64_t size,
 			uint64_t offset, bool flags);
 
-int opal_ds_admin_write(struct sed_device *, const char *key, uint8_t key_len, const void *from, uint32_t size, uint32_t offset);
+int opal_ds_read(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, uint8_t *to, uint32_t size, uint32_t offset);
 
-int opal_ds_admin_read(struct sed_device *, const char *key, uint8_t key_len, uint8_t *to, uint32_t size, uint32_t offset);
+int opal_ds_write(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, const uint8_t *from, uint32_t size, uint32_t offset);
 
-int opal_ds_anybody_read(struct sed_device *, uint8_t *to, uint32_t size, uint32_t offset);
-
-int opal_ds_anybody_write(struct sed_device *, uint8_t *from, uint32_t size, uint32_t offset);
-
-int opal_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key_len);
+int opal_ds_add_anybody_get(struct sed_device *dev, const struct sed_key *key);
 
 int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
 		    struct sed_opal_lockingranges *lrs);
