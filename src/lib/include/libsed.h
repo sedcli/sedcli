@@ -34,6 +34,7 @@ enum SED_AUTHORITY {
 	SED_USER9 = 0x09,
 	SED_SID = 0x0A,
 	SED_PSID = 0x0B,
+	SED_ANYBODY = 0xC,
 };
 
 struct sed_device;
@@ -232,6 +233,25 @@ int sed_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_
  */
 int sed_list_lr(struct sed_device *dev, const struct sed_key *key,
                 struct sed_opal_lockingranges *lrs);
+
+/**
+ *
+ */
+int sed_ds_add_anybody_get(struct sed_device *dev, const struct sed_key *key);
+
+/**
+ *
+ */
+int sed_ds_read(struct sed_device *dev, enum SED_AUTHORITY auth,
+		const struct sed_key *key, uint8_t *to, uint32_t size,
+		uint32_t offset);
+
+/**
+ *
+ */
+int sed_ds_write(struct sed_device *dev, enum SED_AUTHORITY auth,
+		const struct sed_key *key, const void *from, uint32_t size,
+		uint32_t offset);
 
 /**
  *

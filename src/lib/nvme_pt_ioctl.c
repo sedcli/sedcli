@@ -53,6 +53,22 @@ struct opal_device {
 
 struct opal_level0_discovery *discv = NULL;
 
+static int sed2opal_map[] = {
+	[SED_ADMIN1] = OPAL_ADMIN1_UID,
+	[SED_USER1] = OPAL_USER1_UID,
+	[SED_USER2] = OPAL_USER2_UID,
+	[SED_USER3] = -1,
+	[SED_USER4] = -1,
+	[SED_USER5] = -1,
+	[SED_USER6] = -1,
+	[SED_USER7] = -1,
+	[SED_USER8] = -1,
+	[SED_USER9] = -1,
+	[SED_SID] = OPAL_SID_UID,
+	[SED_PSID] = OPAL_PSID_UID,
+	[SED_ANYBODY] = OPAL_ANYBODY_UID,
+};
+
 static uint8_t opal_uid[][OPAL_UID_LENGTH] = {
 	[OPAL_SM_UID] =
 		{ 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff },
@@ -174,6 +190,15 @@ struct opal_req_item {
 		const uint8_t *bytes;
 	} val;
 };
+
+static int get_opal_auth_uid(enum SED_AUTHORITY auth)
+{
+	if (auth > ARRAY_SIZE(sed2opal_map)) {
+		return -1;
+	}
+
+	return sed2opal_map[auth];
+}
 
 static void check_tper_feat(void *feat)
 {
@@ -2057,76 +2082,29 @@ end_sessn:
 	return ret;
 }
 
-int opal_ds_admin_write(struct sed_device *dev, const char *key, uint8_t key_len, const void *from, uint32_t size, uint32_t offset)
+int opal_ds_read(struct sed_device *dev, enum SED_AUTHORITY auth,
+		const struct sed_key *key, uint8_t *to, uint32_t size,
+		uint32_t offset)
 {
-	int ret = 0;
-	struct sed_key disk_key;
-	struct opal_device *opal_dev;
-
-	if (key == NULL || from == NULL) {
-		SEDCLI_DEBUG_MSG("Must provide the password and a valid source pointer\n");
-		return -EINVAL;
-	}
-	opal_dev = dev->priv;
-
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
-	if (ret) {
-		goto end_sessn;
-	}
-
-	ret = opal_write_datastr(dev->fd, opal_dev, from, offset, size);
-
-end_sessn:
-	opal_end_session(dev->fd, opal_dev);
-	return ret;
-}
-
-int opal_ds_admin_read(struct sed_device *dev, const char *key, uint8_t key_len, uint8_t *to, uint32_t size, uint32_t offset)
-{
-	int ret = 0;
-	struct sed_key disk_key;
-	struct opal_device *opal_dev;
-
-	if (key == NULL || to == NULL) {
-		SEDCLI_DEBUG_MSG("Must provide the password and a valid destination pointer\n");
-		return -EINVAL;
-	}
-	opal_dev = dev->priv;
-
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
-	if (ret) {
-		goto end_sessn;
-	}
-
-	ret = opal_read_datastr(dev->fd, opal_dev, to, offset, size);
-
-end_sessn:
-	opal_end_session(dev->fd, opal_dev);
-	return ret;
-}
-
-int opal_ds_anybody_read(struct sed_device *dev, uint8_t *to, uint32_t size, uint32_t offset)
-{
-	int ret = 0;
+	int ret = 0, opal_auth;
 	struct opal_device *opal_dev;
 
 	if (to == NULL) {
 		SEDCLI_DEBUG_MSG("Must provide a valid destination pointer\n");
 		return -EINVAL;
 	}
+
+	opal_auth = get_opal_auth_uid(auth);
+	if (opal_auth < 0) {
+		SEDCLI_DEBUG_MSG("Authority not supported\n");
+		return -EINVAL;
+	}
+
 	opal_dev = dev->priv;
 
-	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID);
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID,
+				opal_auth, key);
+
 	if (ret) {
 		goto end_sessn;
 	}
@@ -2138,18 +2116,29 @@ end_sessn:
 	return ret;
 }
 
-int opal_ds_anybody_write(struct sed_device *dev, uint8_t *from, uint32_t size, uint32_t offset)
+int opal_ds_write(struct sed_device *dev, enum SED_AUTHORITY auth,
+		const struct sed_key *key, const uint8_t *from, uint32_t size,
+		uint32_t offset)
 {
-	int ret = 0;
+	int ret = 0, opal_auth;
 	struct opal_device *opal_dev;
 
 	if (from == NULL) {
 		SEDCLI_DEBUG_MSG("Must provide a valid source pointer\n");
 		return -EINVAL;
 	}
+
+	opal_auth = get_opal_auth_uid(auth);
+	if (opal_auth < 0) {
+		SEDCLI_DEBUG_MSG("Authority not supported\n");
+		return -EINVAL;
+	}
+
 	opal_dev = dev->priv;
 
-	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID);
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_LOCKING_SP_UID,
+				opal_auth, key);
+
 	if (ret) {
 		goto end_sessn;
 	}
@@ -2183,10 +2172,9 @@ static struct opal_req_item opal_ds_add_anybody_set_cmd[] = {
  * Admin1 can write to it.
  * Admin1 key needs to be provided
  */
-int opal_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key_len)
+int opal_ds_add_anybody_get(struct sed_device *dev, const struct sed_key *key)
 {
 	int ret = 0;
-	struct sed_key disk_key;
 	struct opal_device *opal_dev;
 
 	if (key == NULL) {
@@ -2195,11 +2183,9 @@ int opal_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key
 	}
 	opal_dev = dev->priv;
 
-	sed_key_init(&disk_key, key, key_len);
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret) {
-			goto end_sessn;
+		goto end_sessn;
 	}
 
 	prepare_req_buf(opal_dev, opal_ds_add_anybody_set_cmd, ARRAY_SIZE(opal_ds_add_anybody_set_cmd),

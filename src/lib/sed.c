@@ -38,11 +38,9 @@ typedef int (*shadow_mbr)(struct sed_device *, const char *,
 			uint8_t, bool);
 typedef int (*eraselr)(struct sed_device *, const char *,
 			uint8_t, const char *, uint8_t , bool);
-typedef int (*ds_add_anybody_get)(struct sed_device *, const char *, uint8_t);
-typedef int (*ds_admin_write)(struct sed_device *, const char *, uint8_t, const void *, uint32_t, uint32_t);
-typedef int (*ds_admin_read)(struct sed_device *, const char *, uint8_t, uint8_t *, uint32_t, uint32_t);
-typedef int (*ds_anybody_read)(struct sed_device *, uint8_t *, uint32_t, uint32_t);
-typedef int (*ds_anybody_write)(struct sed_device *, uint8_t *, uint32_t, uint32_t);
+typedef int (*ds_add_anybody_get)(struct sed_device *, const struct sed_key *);
+typedef int (*ds_read)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, uint8_t *, uint32_t, uint32_t);
+typedef int (*ds_write)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, const uint8_t *, uint32_t, uint32_t);
 typedef int (*list_lr)(struct sed_device *, const struct sed_key *,
 		       struct sed_opal_lockingranges *);
 typedef void (*deinit)(struct sed_device *);
@@ -64,10 +62,8 @@ struct opal_interface {
 	shadow_mbr shadow_mbr_fn;
 	eraselr eraselr_fn;
 	ds_add_anybody_get ds_add_anybody_get_fn;
-	ds_admin_write ds_admin_write_fn;
-	ds_admin_read ds_admin_read_fn;
-	ds_anybody_read ds_anybody_read_fn;
-	ds_anybody_write ds_anybody_write_fn;
+	ds_read ds_read_fn;
+	ds_write ds_write_fn;
 	list_lr list_lr_fn;
 	deinit deinit_fn;
 };
@@ -91,10 +87,8 @@ static struct opal_interface opal_if = {
 	.shadow_mbr_fn = sedopal_shadowmbr,
 	.eraselr_fn = sedopal_erase_lr,
 	.ds_add_anybody_get_fn = NULL,
-	.ds_admin_read_fn = NULL,
-	.ds_admin_write_fn = NULL,
-	.ds_anybody_read_fn = NULL,
-	.ds_anybody_write_fn = NULL,
+	.ds_read_fn = NULL,
+	.ds_write_fn = NULL,
 	.list_lr_fn = NULL,
 	.deinit_fn = sedopal_deinit
 };
@@ -117,10 +111,8 @@ static struct opal_interface opal_if = {
 	.shadow_mbr_fn	= opal_shadow_mbr_pt,
 	.eraselr_fn	= opal_eraselr_pt,
 	.ds_add_anybody_get_fn = opal_ds_add_anybody_get,
-	.ds_admin_read_fn = opal_ds_admin_read,
-	.ds_admin_write_fn = opal_ds_admin_write,
-	.ds_anybody_read_fn = opal_ds_anybody_read,
-	.ds_anybody_write_fn = opal_ds_anybody_write,
+	.ds_read_fn = opal_ds_read,
+	.ds_write_fn = opal_ds_write,
 	.list_lr_fn	= opal_list_lr_pt,
 	.deinit_fn	= opal_deinit_pt
 };
@@ -298,46 +290,42 @@ int sed_eraselr(struct sed_device *dev, const char *password,
 	return curr_if->eraselr_fn(dev, password, key_len, user, lr, sum);
 }
 
-int sed_ds_admin_write(struct sed_device *dev, const char *key, uint8_t key_len,
-		const void *from, uint32_t size, uint32_t offset)
+int sed_ds_read(struct sed_device *dev, enum SED_AUTHORITY auth,
+		const struct sed_key *key, uint8_t *to, uint32_t size,
+		uint32_t offset)
 {
-	if (curr_if->ds_admin_write_fn == NULL)
+	if (curr_if->ds_read_fn == NULL)
 		return -EOPNOTSUPP;
 
-	return curr_if->ds_admin_write_fn(dev, key, key_len, from, size, offset);
+	if (auth != SED_ANYBODY && key == NULL) {
+		SEDCLI_DEBUG_MSG("Key can't be null\n");
+		return -EINVAL;
+	}
+
+	return curr_if->ds_read_fn(dev, auth, key, to, size, offset);
 }
 
-int sed_ds_admin_read(struct sed_device *dev, const char *key, uint8_t key_len,
-		uint8_t *to, uint32_t size, uint32_t offset)
+int sed_ds_write(struct sed_device *dev, enum SED_AUTHORITY auth,
+		const struct sed_key *key, const void *from, uint32_t size,
+		uint32_t offset)
 {
-	if (curr_if->ds_admin_read_fn == NULL)
+	if (curr_if->ds_write_fn == NULL)
 		return -EOPNOTSUPP;
 
-	return curr_if->ds_admin_read_fn(dev, key, key_len, to, size, offset);
+	if (auth != SED_ANYBODY && key == NULL) {
+		SEDCLI_DEBUG_MSG("Key can't be null\n");
+		return -EINVAL;
+	}
+
+	return curr_if->ds_write_fn(dev, auth, key, from, size, offset);
 }
 
-int sed_ds_anybody_read(struct sed_device *dev, uint8_t *to, uint32_t size, uint32_t offset)
-{
-	if (curr_if->ds_anybody_read_fn == NULL)
-		return -EOPNOTSUPP;
-
-	return curr_if->ds_anybody_read_fn(dev, to, size, offset);
-}
-
-int sed_ds_anybody_write(struct sed_device *dev, uint8_t *from, uint32_t size, uint32_t offset)
-{
-	if (curr_if->ds_anybody_write_fn == NULL)
-		return -EOPNOTSUPP;
-
-	return curr_if->ds_anybody_write_fn(dev, from, size, offset);
-}
-
-int sed_ds_add_anybody_get(struct sed_device *dev, const char *key, uint8_t key_len)
+int sed_ds_add_anybody_get(struct sed_device *dev, const struct sed_key *key)
 {
 	if (curr_if->ds_add_anybody_get_fn == NULL)
 		return -EOPNOTSUPP;
 
-	return curr_if->ds_add_anybody_get_fn(dev, key, key_len);
+	return curr_if->ds_add_anybody_get_fn(dev, key);
 }
 
 int sed_list_lr(struct sed_device *dev, const struct sed_key *key,
