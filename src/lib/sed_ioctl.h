@@ -33,7 +33,7 @@ int sedopal_shadowmbr(struct sed_device *dev, const char *password,
 		uint8_t key_len,
 		bool enable_mbr);
 
-int sedopal_setpw(struct sed_device *dev, const struct sed_key *old_key,
+int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key);
 
 int sedopal_enable_user(struct sed_device *dev, const char *password,

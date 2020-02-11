@@ -663,7 +663,7 @@ static int handle_setpw(void)
 		return ret;
 	}
 
-	ret = sed_setpw(dev, &opts->old_pwd, &opts->pwd);
+	ret = sed_setpw(dev, SED_ADMIN1, &opts->old_pwd, &opts->pwd);
 
 	print_sed_status(ret);
 

@@ -951,36 +951,6 @@ static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, uint8_t 
 	return ret;
 }
 
-static struct opal_req_item set_sid_pwd_cmd[] = {
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } }, /* Values */
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = 3 } }, /* PIN */
-	{ .type = OPAL_BYTES, .len = 1, .val = { .bytes = NULL } }, /* new key and it's length */
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDLIST } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
-};
-
-static int opal_set_sid_pwd(int fd, struct opal_device *dev, const struct sed_key *key)
-{
-	int ret = 0;
-
-	/* Update the password */
-	set_sid_pwd_cmd[5].len = key->len;
-	set_sid_pwd_cmd[5].val.bytes = key->key;
-
-	prepare_req_buf(dev, set_sid_pwd_cmd, ARRAY_SIZE(set_sid_pwd_cmd),
-			opal_uid[OPAL_C_PIN_SID_UID], opal_method[OPAL_SET_METHOD_UID]);
-
-	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
-
-	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
-
-	return ret;
-}
-
 static int opal_get_lsp_lifecycle(int fd, struct opal_device *dev)
 {
 	uint8_t lc_status;
@@ -1339,16 +1309,16 @@ static struct opal_req_item generic_pwd_cmd[] = {
 };
 
 static void generic_pwd_func(struct opal_device *dev, const struct sed_key *key,
-		const uint8_t *uid)
+		const uint8_t *auth_uid)
 {
 	generic_pwd_cmd[5].val.bytes = key->key;
 	generic_pwd_cmd[5].len = key->len;
 
 	prepare_req_buf(dev, generic_pwd_cmd, ARRAY_SIZE(generic_pwd_cmd),
-			uid, opal_method[OPAL_SET_METHOD_UID]);
+			auth_uid, opal_method[OPAL_SET_METHOD_UID]);
 }
 
-static int set_new_pwd(int fd, struct opal_device *dev, uint32_t who, uint32_t sum, uint8_t lr, const struct sed_key *new_key)
+static int set_new_admin1_pwd(int fd, struct opal_device *dev, uint32_t who, uint32_t sum, uint8_t lr, const struct sed_key *new_key)
 {
 	uint8_t uid[OPAL_UID_LENGTH];
 	int ret = 0;
@@ -1365,6 +1335,19 @@ static int set_new_pwd(int fd, struct opal_device *dev, uint32_t who, uint32_t s
 	}
 
 	generic_pwd_func(dev, new_key, uid);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_set_sid_pwd(int fd, struct opal_device *dev, const struct sed_key *key)
+{
+	int ret = 0;
+
+	generic_pwd_func(dev, key, opal_uid[OPAL_C_PIN_SID_UID]);
 
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
 
@@ -1947,24 +1930,34 @@ end_sessn:
 }
 
 
-int opal_set_pwd_pt(struct sed_device *dev, const struct sed_key *old_key,
+int opal_set_pwd_pt(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key)
 {
 	struct opal_device *opal_dev;
 	int ret = 0;
 
 	if (old_key == NULL || old_key->len == 0 || new_key == NULL ||
-			new_key->len == 0) {
+			new_key->len == 0 || !(auth == SED_ADMIN1 || auth == SED_SID)) {
 		SEDCLI_DEBUG_MSG("Invalid arguments, please try again\n");
 		return -EINVAL;
 	}
 	opal_dev = dev->priv;
 
-	ret = opal_start_auth_session(dev->fd, opal_dev, 0, 0, SED_ADMIN1, old_key);
-	if (ret)
-		goto end_sessn;
+	if (auth == SED_ADMIN1) {
+		ret = opal_start_auth_session(dev->fd, opal_dev, 0, 0, SED_ADMIN1, old_key);
+		if (ret)
+			goto end_sessn;
 
-	ret = set_new_pwd(dev->fd, opal_dev, SED_ADMIN1, 0, 0, new_key);
+		ret = set_new_admin1_pwd(dev->fd, opal_dev, SED_ADMIN1, 0, 0, new_key);
+	} else {
+		ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID, OPAL_SID_UID, old_key);
+
+		if (ret) {
+			goto end_sessn;
+		}
+
+		ret = opal_set_sid_pwd(dev->fd, opal_dev, new_key);
+	}
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);

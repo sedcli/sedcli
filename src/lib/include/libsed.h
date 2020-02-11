@@ -21,6 +21,21 @@ enum SED_ACCESS_TYPE {
 	SED_NO_ACCESS = 1 << 2,
 };
 
+enum SED_AUTHORITY {
+	SED_ADMIN1 = 0x0,
+	SED_USER1 = 0x01,
+	SED_USER2 = 0x02,
+	SED_USER3 = 0x03,
+	SED_USER4 = 0x04,
+	SED_USER5 = 0x05,
+	SED_USER6 = 0x06,
+	SED_USER7 = 0x07,
+	SED_USER8 = 0x08,
+	SED_USER9 = 0x09,
+	SED_SID = 0x0A,
+	SED_PSID = 0x0B,
+};
+
 struct sed_device;
 
 struct sed_tper_supported_feat {
@@ -204,7 +219,7 @@ int sed_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_g
 /**
  *
  */
-int sed_setpw(struct sed_device *dev, const struct sed_key *old_key,
+int sed_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key);
 
 /**
