@@ -19,6 +19,7 @@
 typedef int (*init)(struct sed_device *, const char *);
 typedef void (*lvl0_discv) (struct sed_opal_level0_discovery *discv);
 typedef int (*take_ownership)(struct sed_device *, const struct sed_key *);
+typedef int (*get_msid_pin)(struct sed_device *, struct sed_key *);
 typedef int (*reverttper)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*activate_lsp)(struct sed_device *, const struct sed_key *,
 			char *, bool);
@@ -50,6 +51,7 @@ struct opal_interface {
 	init init_fn;
 	lvl0_discv lvl0_discv_fn;
 	take_ownership ownership_fn;
+	get_msid_pin get_msid_pin_fn;
 	reverttper revert_fn;
 	revertsp revertsp_fn;
 	activate_lsp activatelsp_fn;
@@ -76,6 +78,7 @@ static struct opal_interface opal_if = {
 	.init_fn = sedopal_init,
 	.lvl0_discv_fn = NULL,
 	.ownership_fn = sedopal_takeownership,
+	.get_msid_pin_fn = NULL,
 	.revert_fn = sedopal_reverttper,
 	.activatelsp_fn = sedopal_activatelsp,
 	.revertsp_fn = NULL,
@@ -101,6 +104,7 @@ static struct opal_interface opal_if = {
 	.init_fn	= opal_init_pt,
 	.lvl0_discv_fn	= opal_level0_discv_info_pt,
 	.ownership_fn	= opal_takeownership_pt,
+	.get_msid_pin_fn = opal_get_msid_pin_pt,
 	.revert_fn	= opal_reverttper_pt,
 	.activatelsp_fn	= opal_activate_lsp_pt,
 	.revertsp_fn	= opal_revertlsp_pt,
@@ -217,6 +221,14 @@ int sed_key_init(struct sed_key *auth_key, const char *key, const uint8_t key_le
 int sed_takeownership(struct sed_device *dev, const struct sed_key *key)
 {
 	return curr_if->ownership_fn(dev, key);
+}
+
+int sed_get_msid_pin(struct sed_device *dev, struct sed_key *msid_pin)
+{
+	if (curr_if->get_msid_pin_fn == NULL)
+		return -EOPNOTSUPP;
+
+	return curr_if->get_msid_pin_fn(dev, msid_pin);
 }
 
 int sed_setup_global_range(struct sed_device *dev, const struct sed_key *key)

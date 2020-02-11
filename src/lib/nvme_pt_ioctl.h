@@ -352,6 +352,8 @@ void opal_level0_discv_info_pt(struct sed_opal_level0_discovery *discvry);
 
 int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key);
 
+int opal_get_msid_pin_pt(struct sed_device *dev, struct sed_key *msid_pin);
+
 int opal_reverttper_pt(struct sed_device *dev, const struct sed_key *key, bool psid);
 
 int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key,
