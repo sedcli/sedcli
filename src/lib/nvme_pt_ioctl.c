@@ -1584,7 +1584,7 @@ static int list_lr(int fd, struct opal_device *dev, struct sed_opal_lockingrange
 		return ret;
 
 	lrs->lr_num = dev->payload.tokens[4]->vals.uint + 1;
-	SEDCLI_DEBUG_PARAM("The number of ranges discovered is: %ld\n",
+	SEDCLI_DEBUG_PARAM("The number of ranges discovered is: %d\n",
 			lrs->lr_num);
 	if (lrs->lr_num > SED_OPAL_MAX_LRS) {
 		lrs->lr_num = SED_OPAL_MAX_LRS;
