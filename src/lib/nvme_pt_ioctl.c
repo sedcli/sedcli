@@ -1873,7 +1873,7 @@ int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
 {
 	struct sed_key disk_key;
 	struct opal_device *opal_dev;
-	uint32_t who = 0;
+	uint32_t who = SED_ADMIN1;
 	int ret = 0;
 
 	if (range_start == ~0 || range_length == ~0 || (!sum && user == NULL) ||
@@ -2025,7 +2025,7 @@ int opal_eraselr_pt(struct sed_device *dev, const char *password,
 {
 	struct sed_key disk_key;
 	struct opal_device *opal_dev;
-	uint32_t who = 0;
+	uint32_t who = SED_ADMIN1;
 	int ret = 0;
 
 	if ((!sum && user == NULL) || password == NULL) {
