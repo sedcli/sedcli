@@ -1153,6 +1153,8 @@ int opal_setup_global_range_pt(struct sed_device *dev, const struct sed_key *key
 	opal_dev = dev->priv;
 
 	status = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
+	if (status)
+		goto end_sessn;
 
 	/* Read Locking Enabled*/
 	generic_enable_disable_global_lr_cmd[5].val.byte = true;
@@ -1166,6 +1168,7 @@ int opal_setup_global_range_pt(struct sed_device *dev, const struct sed_key *key
 
 	opal_put_all_tokens(opal_dev->payload.tokens, &opal_dev->payload.len);
 
+end_sessn:
 	opal_end_session(dev->fd, opal_dev);
 
 	return status;
@@ -1870,7 +1873,7 @@ int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
 {
 	struct sed_key disk_key;
 	struct opal_device *opal_dev;
-	uint32_t who;
+	uint32_t who = 0;
 	int ret = 0;
 
 	if (range_start == ~0 || range_length == ~0 || (!sum && user == NULL) ||
@@ -2022,7 +2025,7 @@ int opal_eraselr_pt(struct sed_device *dev, const char *password,
 {
 	struct sed_key disk_key;
 	struct opal_device *opal_dev;
-	uint32_t who;
+	uint32_t who = 0;
 	int ret = 0;
 
 	if ((!sum && user == NULL) || password == NULL) {
