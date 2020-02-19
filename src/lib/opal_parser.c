@@ -303,8 +303,10 @@ void opal_put_all_tokens(struct opal_token **tokens, int *len)
 	int i;
 
 	for (i = 0; i < *len; i++) {
-		opal_put_token(tokens[i]);
-		tokens[i] = NULL;
+		if(tokens[i] != NULL) {
+			opal_put_token(tokens[i]);
+			tokens[i] = NULL;
+		}
 	}
 	*len = 0;
 }

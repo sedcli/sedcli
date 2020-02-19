@@ -361,6 +361,7 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 		ret = -ENOMEM;
 		goto init_deinit;
 	}
+	memset(opal_dev, 0, sizeof(*opal_dev));
 	dev->priv = opal_dev;
 
 	opal_dev->session.tsn = 0;
