@@ -910,7 +910,7 @@ static int opal_revert_tper_local(int fd, struct opal_device *dev)
 static struct opal_req_item opal_revert_sp_cmd[] = {
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
 	{ .type = OPAL_U64, .len = 4, .val = { .uint = KEEP_GLOBAL_RANGE_KEY } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_TRUE } },
+	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_FALSE } },
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
 };
 
@@ -918,11 +918,12 @@ static int opal_revertlsp_local(int fd, struct opal_device *dev, bool keep_globa
 {
 	int ret = 0;
 
+	opal_revert_sp_cmd[2].val.byte = keep_global_rn_key ? OPAL_TRUE : OPAL_FALSE;
+
 	prepare_req_buf(dev, opal_revert_sp_cmd, ARRAY_SIZE(opal_revert_sp_cmd),
 			opal_uid[OPAL_THISSP_UID],
 			opal_method[OPAL_REVERTSP_METHOD_UID]);
 
-	opal_revert_sp_cmd[2].val.byte = keep_global_rn_key ? OPAL_TRUE : OPAL_FALSE;
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
 
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
