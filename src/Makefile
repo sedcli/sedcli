@@ -4,23 +4,18 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 
-#
-# Includes dir
-#
-INCLUDES = ./include ./lib/include
-
-#
-# Flags for compilation
-#
-CFLAGS = $(patsubst %,-I%,$(INCLUDES))
-CFLAGS += $(patsubst %,-D%,$(DEFINES))
-
 ifeq (, $(filter $(MAKECMDGOALS), clean distclean))
 ifeq ("$(wildcard config.mk config.h)", "")
 $(error Run ./configure before invoking make)
 endif
 include config.mk
 endif
+
+#
+# Flags for compilation
+#
+CFLAGS += $(patsubst %,-I%,$(INCLUDES))
+CFLAGS += $(patsubst %,-D%,$(DEFINES))
 
 OBJDIR = .obj/
 LIBOBJDIR = .libobj/
@@ -43,7 +38,15 @@ OBJS = argp.o
 OBJS += sedcli_main.o
 OBJS += sedcli_util.o
 
+ifdef CONFIG_KMIP
+KMIP_OBJS = argp.o
+KMIP_OBJS += metadata_serializer.o
+endif
+
 ALL_TARGETS = $(TARGET)-static $(TARGET)-dynamic
+ifdef CONFIG_KMIP
+ALL_TARGETS += $(TARGET)-kmip.a
+endif
 
 all: $(ALL_TARGETS)
 	@ln -sf $(TARGET)-static $(TARGET)
@@ -59,6 +62,10 @@ $(TARGET)-dynamic: $(TARGET).a $(LIB).so
 $(TARGET).a: $(patsubst %,$(OBJDIR)%,$(OBJS))
 	@echo "  AR " $@
 	@ar rcs $@ $^
+
+$(TARGET)-kmip.a: $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
+	@echo "  AR " $@
+	@ar rcs $@ $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
 
 #
 # Static library
@@ -91,7 +98,7 @@ $(LIBOBJDIR)%.o: lib/%.c
 
 clean:
 	@echo "  CLEAN "
-	@rm -f *.a $(TARGET)-static $(TARGET)-dynamic $(TARGET) *.so*
+	@rm -f *.a $(TARGET)-kmip $(TARGET)-static $(TARGET)-dynamic $(TARGET) *.so*
 	@rm -fr $(OBJDIR) $(LIBOBJDIR)
 	@rm -f $(shell find -name \*.d) $(shell find -name \*.o)
 
