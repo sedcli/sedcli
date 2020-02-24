@@ -718,19 +718,19 @@ static int opal_start_anybody_session(int fd, struct opal_device *dev, int sp)
 			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
 
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
-	if (ret == OPAL_SUCCESS) {
-		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
-		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
-	} else {
+	if (ret) {
 		SEDCLI_DEBUG_MSG("Response parsed incorrectly.\n");
-		return ret;
+		goto put_tokens;
 	}
 
+	dev->session.hsn = dev->payload.tokens[4]->vals.uint;
+	dev->session.tsn = dev->payload.tokens[5]->vals.uint;
 	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
 		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
-		return -EINVAL;
+		ret = -EINVAL;
 	}
 
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -769,19 +769,19 @@ static int opal_start_generic_session(int fd, struct opal_device *dev, int sp, i
 			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
 
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
-	if (ret == OPAL_SUCCESS) {
-		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
-		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
-	} else {
+	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in Starting a SIDASP session\n");
-		return ret;
+		goto put_tokens;
 	}
 
+	dev->session.hsn = dev->payload.tokens[4]->vals.uint;
+	dev->session.tsn = dev->payload.tokens[5]->vals.uint;
 	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
 		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
-		return -EINVAL;
+		ret = -EINVAL;
 	}
 
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -857,14 +857,15 @@ static int opal_start_auth_session(int fd, struct opal_device *dev,
 		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
 	} else {
 		SEDCLI_DEBUG_MSG("Error in Starting a auth session\n");
-		return ret;
+		goto put_tokens;
 	}
 
 	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
 		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
-		return -EINVAL;
+		ret = -EINVAL;
 	}
 
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -949,13 +950,21 @@ static struct opal_req_item opal_generic_get_column_cmd[] = {
 static int opal_generic_get_column(int fd, struct opal_device *dev, const uint8_t *uid,
 				   uint64_t start_col, uint64_t end_col)
 {
+	int ret;
+
 	opal_generic_get_column_cmd[3].val.uint = start_col;
 	opal_generic_get_column_cmd[7].val.uint = end_col;
 
 	prepare_req_buf(dev, opal_generic_get_column_cmd, ARRAY_SIZE(opal_generic_get_column_cmd),
 			uid, opal_method[OPAL_GET_METHOD_UID]);
 
-	return opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	if (ret) {
+		SEDCLI_DEBUG_PARAM("%s: Error parsing payload\n", __func__);
+		opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+	}
+
+	return ret;
 }
 
 static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, uint8_t *key_len)
@@ -963,15 +972,14 @@ static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, uint8_t 
 	uint8_t jmp;
 	int ret = 0;
 
-	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_C_PIN_MSID_UID], OPAL_PIN, OPAL_PIN);
-	if (ret == OPAL_SUCCESS) {
-		jmp = get_payload_string(dev, 4);
-		*key_len = dev->payload.tokens[4]->len - jmp;
-		memcpy(key, dev->payload.tokens[4]->pos + jmp, *key_len);
-	} else {
-		SEDCLI_DEBUG_MSG("There is an error in parsing\n");
+	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_C_PIN_MSID_UID],
+				      OPAL_PIN, OPAL_PIN);
+	if (ret)
 		return ret;
-	}
+
+	jmp = get_payload_string(dev, 4);
+	*key_len = dev->payload.tokens[4]->len - jmp;
+	memcpy(key, dev->payload.tokens[4]->pos + jmp, *key_len);
 
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
@@ -985,11 +993,13 @@ static int opal_get_lsp_lifecycle(int fd, struct opal_device *dev)
 
 	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_SP_UID],
 				      OPAL_LIFECYCLE, OPAL_LIFECYCLE);
+	if (ret)
+		return ret;
 
 	lc_status = dev->payload.tokens[4]->vals.uint;
 	if (lc_status != OPAL_MANUFACTURED_INACTIVE) {
 		SEDCLI_DEBUG_MSG("Couldn't determine the status of the Lifecycle state\n");
-		return -ENODEV;
+		ret = -ENODEV;
 	}
 
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
@@ -1473,6 +1483,8 @@ static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *da
 
 	len = dev->payload.tokens[4]->vals.uint;
 	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	if (size > len || offset > len - size) {
 		SEDCLI_DEBUG_PARAM("The data doesn't fit in the datastore table: Can't fit "\
