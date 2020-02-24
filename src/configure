@@ -140,11 +140,13 @@ int main(int argc, char **argv)
 }
 EOF
 
-	if [ "${ret_code}" -eq "0" ] && test_compile "openssl" "" "-lcrypto -lssl"; then
+	if [ "${ret_code}" -eq "0" ]; then
 		print_status "KMIP support" "yes"
 		app_config_mk "CONFIG_KMIP=y"
-		app_config_mk "INCLUDES+=../libkmip"
-		app_config_mk "LDFLAGS_KMIP+=-L../libkmip -lkmip -lcrypto -lssl"
+		app_config_mk "INCLUDES+=libkmip"
+		app_config_mk "LDFLAGS_KMIP+=-Llibkmip -lkmip"
+		app_config_mk "INCLUDES+=openssl"
+		app_config_mk "LDFLAGS_KMIP+=-Lopenssl -lcrypto -lssl"
 	else
 		print_status "KMIP support" "no"
 	fi
