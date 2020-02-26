@@ -55,6 +55,7 @@ function common_def() {
 }
 
 function common_mk() {
+	app_config_mk "INCLUDES=./include ./lib/include"
 	app_config_mk "CFLAGS+=-include ${CONFIG_H}"
 	app_config_mk "CFLAGS+=-O2 -g -Wall -Werror -Wno-unused-function -Wno-address-of-packed-member -fstack-protector-all -std=gnu99"
 	app_config_mk "LDFLAGS+=-L."
@@ -142,6 +143,7 @@ EOF
 	if [ "${ret_code}" -eq "0" ] && test_compile "openssl" "" "-lcrypto -lssl"; then
 		print_status "KMIP support" "yes"
 		app_config_mk "CONFIG_KMIP=y"
+		app_config_mk "INCLUDES+=../libkmip"
 		app_config_mk "LDFLAGS_KMIP+=-L../libkmip -lkmip -lcrypto -lssl"
 	else
 		print_status "KMIP support" "no"
