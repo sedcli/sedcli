@@ -702,38 +702,18 @@ static uint8_t get_payload_string(struct opal_device *dev, uint8_t num)
 	return jmp;
 }
 
-static struct opal_req_item start_anybody_sess_cmd[] = {
-	{ .type = OPAL_U64, .len = 4, .val = { .uint = GENERIC_HOST_SESSION_NUM } },
-	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = opal_uid[OPAL_ADMIN_SP_UID] } }, /*Admin SP | Locking SP*/
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
-};
-
-static int opal_start_anybody_session(int fd, struct opal_device *dev, int sp)
+static int validate_sessn(struct opal_device *dev)
 {
-	int ret = 0;
+	dev->session.hsn = dev->payload.tokens[4]->vals.uint;
+	dev->session.tsn = dev->payload.tokens[5]->vals.uint;
 
-	start_anybody_sess_cmd[1].val.bytes = (sp == OPAL_LOCKING_SP_UID ? opal_uid[OPAL_LOCKING_SP_UID] : opal_uid[OPAL_ADMIN_SP_UID] );
-
-	prepare_req_buf(dev, start_anybody_sess_cmd, ARRAY_SIZE(start_anybody_sess_cmd),
-			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
-
-	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
-	if (ret == OPAL_SUCCESS) {
-		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
-		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
-	} else {
-		SEDCLI_DEBUG_MSG("Response parsed incorrectly.\n");
-		return ret;
-	}
-
-	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
-		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
+	if (dev->session.hsn != GENERIC_HOST_SESSION_NUM &&
+	    dev->session.tsn < RSVD_TPER_SESSION_NUM) {
+		SEDCLI_DEBUG_MSG("Error syncing session(invalid session numbers)\n");
 		return -EINVAL;
 	}
 
-	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
-
-	return ret;
+	return 0;
 }
 
 static struct opal_req_item start_sess_cmd[] = {
@@ -750,38 +730,53 @@ static struct opal_req_item start_sess_cmd[] = {
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
 };
 
-static int opal_start_generic_session(int fd, struct opal_device *dev, int sp, int auth, const struct sed_key *key)
+static void prep_sessn_buff(int sp, const struct sed_key *key, uint8_t *buf)
 {
-	int ret = 0;
-
 	/* SP */
 	start_sess_cmd[1].val.bytes = opal_uid[sp];
-	if (auth != OPAL_ANYBODY_UID) {
-		/* Host Challenge */
-		start_sess_cmd[5].val.bytes = key->key;
-		start_sess_cmd[5].len = key->len;
 
-		/* Host Signing Authority */
-		start_sess_cmd[9].val.bytes = opal_uid[auth];
-	}
+	if (!key)
+		return;
 
-	prepare_req_buf(dev, start_sess_cmd, ARRAY_SIZE(start_sess_cmd),
-			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
+	/* Host Challenge */
+	start_sess_cmd[5].val.bytes = key->key;
+	start_sess_cmd[5].len = key->len;
 
-	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
-	if (ret == OPAL_SUCCESS) {
-		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
-		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
-	} else {
-		SEDCLI_DEBUG_MSG("Error in Starting a SIDASP session\n");
-		return ret;
-	}
+	/* Host Signing Authority */
+	start_sess_cmd[9].val.bytes = buf;
+}
 
-	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
-		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
+static int opal_start_generic_session(int fd, struct opal_device *dev, int sp,
+				      int auth, const struct sed_key *key)
+{
+	int ret = 0;
+	int cmd_len = ARRAY_SIZE(start_sess_cmd);
+
+	if (auth != OPAL_ANYBODY_UID && key == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide password for this authority\n");
 		return -EINVAL;
 	}
 
+	if (auth != OPAL_ANYBODY_UID) {
+		prep_sessn_buff(sp, key, opal_uid[auth]);
+	} else {
+		prep_sessn_buff(sp, NULL, NULL);
+		/* Only the first 3 tokens are required for anybody authority */
+		cmd_len = 3;
+	}
+
+	prepare_req_buf(dev, start_sess_cmd, cmd_len, opal_uid[OPAL_SM_UID],
+			opal_method[OPAL_STARTSESSION_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in Starting a SIDASP session\n");
+		goto put_tokens;
+	}
+
+	ret = validate_sessn(dev);
+
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -809,20 +804,6 @@ static int opal_start_admin1_lsp_session(int fd, struct opal_device *dev,
 			OPAL_ADMIN1_UID, key);
 }
 
-static struct opal_req_item start_auth_session_cmd[] = {
-	{ .type = OPAL_U64, .len = 8, .val = { .uint = GENERIC_HOST_SESSION_NUM } },
-	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = opal_uid[OPAL_LOCKING_SP_UID] } }, /*Admin SP | Locking SP*/
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = 1 } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = 0 } },
-	{ .type = OPAL_BYTES, .len = 1, .val = { .bytes = NULL } }, /* Host Challenge -> key; key_len */
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = 3 } },
-	{ .type = OPAL_BYTES, .len = 8, .val = { .bytes = NULL } }, /* Host Signing Authority: MSID, SID, PSID */
-	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
-};
-
 static int opal_start_auth_session(int fd, struct opal_device *dev,
 		uint32_t sum, uint8_t lr, uint32_t who, const struct sed_key *key)
 {
@@ -842,29 +823,21 @@ static int opal_start_auth_session(int fd, struct opal_device *dev,
 		return ret;
 	}
 
-	start_auth_session_cmd[5].val.bytes = key->key;
-	start_auth_session_cmd[5].len = key->len;
+	prep_sessn_buff(OPAL_LOCKING_SP_UID, key, lk_ulk_usr);
 
-	start_auth_session_cmd[9].val.bytes = lk_ulk_usr;
-	start_auth_session_cmd[9].len = OPAL_UID_LENGTH;
-
-	prepare_req_buf(dev, start_auth_session_cmd, ARRAY_SIZE(start_auth_session_cmd),
-			opal_uid[OPAL_SM_UID], opal_method[OPAL_STARTSESSION_METHOD_UID]);
+	prepare_req_buf(dev, start_sess_cmd, ARRAY_SIZE(start_sess_cmd),
+			opal_uid[OPAL_SM_UID],
+			opal_method[OPAL_STARTSESSION_METHOD_UID]);
 
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
-	if (ret == OPAL_SUCCESS) {
-		dev->session.hsn = dev->payload.tokens[4]->vals.uint;
-		dev->session.tsn = dev->payload.tokens[5]->vals.uint;
-	} else {
+	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in Starting a auth session\n");
-		return ret;
+		goto put_tokens;
 	}
 
-	if (dev->session.hsn == 0 && dev->session.tsn == 0) {
-		SEDCLI_DEBUG_MSG("Session couldn't be authenticated\n");
-		return -EINVAL;
-	}
+	ret = validate_sessn(dev);
 
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -1659,7 +1632,8 @@ int opal_get_msid_pin_pt(struct sed_device *dev, struct sed_key *msid_pin)
 
 	memset(msid_pin, 0, sizeof(*msid_pin));
 
-	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID);
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID,
+					 OPAL_ANYBODY_UID, NULL);
 	if (ret)
 		goto end_sessn;
 
@@ -1688,7 +1662,8 @@ int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key)
 
 	memset(msid_pin, 0, sizeof(msid_pin));
 
-	ret = opal_start_anybody_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID);
+	ret = opal_start_generic_session(dev->fd, opal_dev, OPAL_ADMIN_SP_UID,
+					 OPAL_ANYBODY_UID, NULL);
 	if (ret)
 		goto end_sessn;
 
