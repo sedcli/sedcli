@@ -937,15 +937,16 @@ static int opal_get_msid(int fd, struct opal_device *dev, uint8_t *key, uint8_t 
 	int ret = 0;
 
 	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_C_PIN_MSID_UID], OPAL_PIN, OPAL_PIN);
-	if (ret == OPAL_SUCCESS) {
-		jmp = get_payload_string(dev, 4);
-		*key_len = dev->payload.tokens[4]->len - jmp;
-		memcpy(key, dev->payload.tokens[4]->pos + jmp, *key_len);
-	} else {
-		SEDCLI_DEBUG_MSG("There is an error in parsing\n");
-		return ret;
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error parsing payload\n");
+		goto put_tokens;
 	}
 
+	jmp = get_payload_string(dev, 4);
+	*key_len = dev->payload.tokens[4]->len - jmp;
+	memcpy(key, dev->payload.tokens[4]->pos + jmp, *key_len);
+
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -958,13 +959,18 @@ static int opal_get_lsp_lifecycle(int fd, struct opal_device *dev)
 
 	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_SP_UID],
 				      OPAL_LIFECYCLE, OPAL_LIFECYCLE);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error parsing payload\n");
+		goto put_tokens;
+	}
 
 	lc_status = dev->payload.tokens[4]->vals.uint;
 	if (lc_status != OPAL_MANUFACTURED_INACTIVE) {
 		SEDCLI_DEBUG_MSG("Couldn't determine the status of the Lifecycle state\n");
-		return -ENODEV;
+		ret = -ENODEV;
 	}
 
+put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
@@ -1415,11 +1421,24 @@ static int get_table_length(int fd, struct opal_device *dev, enum opaluid table)
 {
 	uint8_t uid[OPAL_UID_LENGTH];
 	const int half = OPAL_UID_LENGTH/2;
+	int ret;
 
 	memcpy(uid, opal_uid[OPAL_TABLE_TABLE_UID], half);
 	memcpy(uid + half, opal_uid[table], half);
 
-	return opal_generic_get_column(fd, dev, uid, OPAL_TABLE_ROW, OPAL_TABLE_ROW);
+	ret = opal_generic_get_column(fd, dev, uid, OPAL_TABLE_ROW, OPAL_TABLE_ROW);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error parsing payload\n");
+		ret = -1;
+		goto put_tokens;
+	}
+
+	ret = dev->payload.tokens[4]->vals.uint;
+
+put_tokens:
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
 }
 
 /*
@@ -1438,13 +1457,12 @@ static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *da
 	if (size == 0)
 		return 0;
 
-	ret = get_table_length(fd, dev, OPAL_DATASTORE_UID);
-	if (ret) {
+	len = get_table_length(fd, dev, OPAL_DATASTORE_UID);
+	if (len < 0) {
 		SEDCLI_DEBUG_MSG("Error retrieving table length\n");
-		return ret;
+		return len;
 	}
 
-	len = dev->payload.tokens[4]->vals.uint;
 	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
 
 	if (size > len || offset > len - size) {
@@ -1534,13 +1552,12 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 	if (size == 0)
 		return 0;
 
-	ret = get_table_length(fd, dev, OPAL_DATASTORE_UID);
-	if (ret) {
+	len = get_table_length(fd, dev, OPAL_DATASTORE_UID);
+	if (len < 0) {
 		SEDCLI_DEBUG_MSG("Error retrieving table length\n");
-		return ret;
+		return len;
 	}
 
-	len = dev->payload.tokens[4]->vals.uint;
 	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
 
 	if (size > len || offset > len - size) {
@@ -1559,6 +1576,10 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 				opal_uid[OPAL_DATASTORE_UID], opal_method[OPAL_GET_METHOD_UID]);
 
 		ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+		if (ret) {
+			opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+			break;
+		}
 
 		/* Reading the Data from the response */
 		jmp = get_payload_string(dev, 1);
@@ -1567,11 +1588,28 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 
 		opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
-		if (ret)
-			break;
-
 		index += len;
 	}
+
+	return ret;
+}
+
+static int get_num_lrs(int fd, struct opal_device *dev)
+{
+	int ret;
+
+	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_INFO_TABLE_UID],
+				      OPAL_MAXRANGES, OPAL_MAXRANGES);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error parsing payload\n");
+		ret = -1;
+		goto put_tokens;
+	}
+
+	ret = dev->payload.tokens[4]->vals.uint + 1;
+
+put_tokens:
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
 	return ret;
 }
@@ -1581,21 +1619,18 @@ static int list_lr(int fd, struct opal_device *dev, struct sed_opal_lockingrange
 	int ret;
 	uint8_t uid[OPAL_UID_LENGTH];
 
-	ret = opal_generic_get_column(fd, dev, opal_uid[OPAL_LOCKING_INFO_TABLE_UID],
-				OPAL_MAXRANGES, OPAL_MAXRANGES);
-	if (ret)
-		return ret;
+	lrs->lr_num = get_num_lrs(fd, dev);
+	if (lrs->lr_num < 0)
+		return lrs->lr_num;
 
-	lrs->lr_num = dev->payload.tokens[4]->vals.uint + 1;
-	SEDCLI_DEBUG_PARAM("The number of ranges discovered is: %d\n",
-			lrs->lr_num);
-	if (lrs->lr_num > SED_OPAL_MAX_LRS) {
+	if (lrs->lr_num > SED_OPAL_MAX_LRS)
 		lrs->lr_num = SED_OPAL_MAX_LRS;
-	}
 
-	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+	SEDCLI_DEBUG_PARAM("The number of ranges discovered is: %d\n",
+			   lrs->lr_num);
 
 	for (int i = 0; i < lrs->lr_num; i++) {
+
 		ret = build_lr(uid, sizeof(uid), i);
 		if (ret) {
 			SEDCLI_DEBUG_MSG("Error building locking range\n");
@@ -1603,9 +1638,11 @@ static int list_lr(int fd, struct opal_device *dev, struct sed_opal_lockingrange
 		}
 
 		ret = opal_generic_get_column(fd, dev, uid, OPAL_RANGESTART,
-					OPAL_WRITELOCKED);
-		if (ret)
+					      OPAL_WRITELOCKED);
+		if (ret) {
+			opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 			return ret;
+		}
 
 		struct sed_opal_lockingrange *lr = &lrs->lrs[i];
 
