@@ -41,6 +41,7 @@ OBJS += sedcli_util.o
 ifdef CONFIG_KMIP
 KMIP_OBJS = argp.o
 KMIP_OBJS += metadata_serializer.o
+KMIP_OBJS += crypto_lib.o
 endif
 
 ALL_TARGETS = $(TARGET)-static $(TARGET)-dynamic
