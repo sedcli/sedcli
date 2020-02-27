@@ -22,6 +22,13 @@
 #include "sed_util.h"
 
 #define GENERIC_HOST_SESSION_NUM 0x41
+
+/*
+ * TSM SHALL NOT assign any TSN in the range 0 to 4095 to a regular session.
+ * These TSNs are reserved by TCG for special sessions
+ */
+#define RSVD_TPER_SESSION_NUM	(4096)
+
 #define OPAL_SUCCESS (0)
 
 #define MAX_FEATURES 64
