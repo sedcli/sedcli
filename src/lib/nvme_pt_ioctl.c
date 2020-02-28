@@ -707,7 +707,7 @@ static int validate_sessn(struct opal_device *dev)
 	dev->session.hsn = dev->payload.tokens[4]->vals.uint;
 	dev->session.tsn = dev->payload.tokens[5]->vals.uint;
 
-	if (dev->session.hsn != GENERIC_HOST_SESSION_NUM &&
+	if (dev->session.hsn != GENERIC_HOST_SESSION_NUM ||
 	    dev->session.tsn < RSVD_TPER_SESSION_NUM) {
 		SEDCLI_DEBUG_MSG("Error syncing session(invalid session numbers)\n");
 		return -EINVAL;
