@@ -46,11 +46,18 @@ KMIP_OBJS += metadata_serializer.o
 KMIP_OBJS += config_file.o
 KMIP_OBJS += crypto_lib.o
 KMIP_OBJS += kmip_lib.o
+KMIP_OBJS += sedcli_util.o
+KMIP_OBJS += sedcli_kmip.o
 endif
 
 ALL_TARGETS = $(TARGET)-static $(TARGET)-dynamic
 ifdef CONFIG_KMIP
-ALL_TARGETS += $(TARGET)-kmip.a
+ALL_TARGETS += $(TARGET)-kmip
+endif
+
+INSTALL_TARGETS = install-$(TARGET)
+ifdef CONFIG_KMIP
+INSTALL_TARGETS += install-$(TARGET)-kmip
 endif
 
 all: $(ALL_TARGETS)
@@ -71,6 +78,10 @@ $(TARGET).a: $(patsubst %,$(OBJDIR)%,$(OBJS))
 $(TARGET)-kmip.a: libkmip.a $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
 	@echo "  AR " $@
 	@ar rcs $@ $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
+
+$(TARGET)-kmip: $(TARGET)-kmip.a $(LIB).a
+	@echo "  LD " $@
+	@$(CC) $(TARGET)-kmip.a $(LDFLAGS) $(LDFLAGS_KMIP) -Wl,-Bstatic -lsed -Wl,-Bdynamic -o $@
 
 libkmip.a:
 	@pushd . > /dev/null && cd libkmip && make $@ && popd > /dev/null
@@ -113,17 +124,38 @@ clean:
 distclean: clean
 	@rm -f config.log config.mk config.h
 
-install:
+install-$(TARGET):
 	@echo " Installing $(TARGET)"
 	install -m 755 $(TARGET)-dynamic /usr/sbin/$(TARGET)
 	install -m 755 $(LIB).so.1.0.1 $(LIB_DIR)
 	ln -sf $(LIB_DIR)/$(LIB).so.1.0.1 $(LIB_DIR)/$(LIB).so.1
 	install -m 644 ../doc/$(TARGET).8 /usr/share/man/man8/$(TARGET).8
 
+install-$(TARGET)-kmip: install-$(TARGET)
+	@echo " Installing $(TARGET)-kmip"
+	install -m 755 $(TARGET)-kmip /usr/sbin/$(TARGET)-kmip
+	install -m 755 -d /etc/sedcli /etc/sedcli/certs
+	install -m 644 ../etc/sedcli/sedcli.conf /etc/sedcli/
+	touch /etc/sedcli/sedcli_kmip && chmod 644 /etc/sedcli/sedcli_kmip
+
+install-cert:
+	install -m 644 ../certs/ca/ca_cert.pem /etc/sedcli/certs/
+	install -m 644 ../certs/client/client_cert.pem /etc/sedcli/certs/
+	install -m 644 ../certs/client/client_key.pem /etc/sedcli/certs/
+
+install: $(INSTALL_TARGETS)
+
 uninstall:
 	@echo "  Removing $(TARGET)"
 	-rm /usr/sbin/$(TARGET)
 	-rm $(LIB_DIR)/$(LIB).so*
 	-rm /usr/share/man/man8/$(TARGET).8
+	-rm /usr/sbin/$(TARGET)-kmip
+	-rm /etc/sedcli/sedcli.conf
+
+uninstall-cert:
+	-rm /etc/sedcli/certs/ca_cert.pem
+	-rm /etc/sedcli/certs/client_cert.pem
+	-rm /etc/sedcli/certs/client_key.pem
 
 .PHONY: clean all distclean install uninstall
