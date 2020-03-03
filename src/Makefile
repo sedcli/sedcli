@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 
+SHELL := /bin/bash
+
 ifeq (, $(filter $(MAKECMDGOALS), clean distclean))
 ifeq ("$(wildcard config.mk config.h)", "")
 $(error Run ./configure before invoking make)
