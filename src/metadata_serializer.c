@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2020 Intel Corporation
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>

@@ -1,3 +1,8 @@
+/*
+ * Copyright (C) 2020 Intel Corporation
+ *
+ * SPDX-License-Identifier: GPL-2.0-or-later
+ */
 #ifndef _SEDCLI_METADATA_H_
 #define _SEDCLI_METADATA_H_
 
