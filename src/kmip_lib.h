@@ -37,8 +37,8 @@ int sed_kmip_gen_platform_key(struct sed_kmip_ctx *ctx,
 			      char **pek_id, int *pek_id_size);
 
 int sed_kmip_get_platform_key(struct sed_kmip_ctx *ctx,
-			      char *key_id, int key_id_size,
-			      char **key, int *key_size);
+			      char *pek_id, int pek_id_size,
+			      char **pek, int *pek_size);
 
 void sed_kmip_deinit(struct sed_kmip_ctx *ctx);
 

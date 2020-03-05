@@ -61,62 +61,60 @@ int sed_kmip_init(struct sed_kmip_ctx *ctx, char *ip, char *port,
 					      SSL_FILETYPE_PEM);
 	if (status != 1) {
 		sedcli_printf(LOG_ERR, "Loading the client certificate "
-			      "failed\n");
-		ERR_print_errors_fp(stderr);
-		sed_kmip_deinit(ctx);
-		return -ENOENT;
+					      "failed\n");
+		goto error;
 	}
 
 	status = SSL_CTX_use_PrivateKey_file(ctx->ssl_ctx, ctx->client_key_path,
 					     SSL_FILETYPE_PEM);
 	if (status != 1) {
 		sedcli_printf(LOG_ERR, "Loading the client key failed\n");
-		ERR_print_errors_fp(stderr);
-		sed_kmip_deinit(ctx);
-		return -ENOENT;
+		goto error;
 	}
 
 	status = SSL_CTX_load_verify_locations(ctx->ssl_ctx, ctx->ca_cert_path,
 					       NULL);
 	if (status != 1) {
 		sedcli_printf(LOG_ERR, "Loading the CA file failed\n");
-		ERR_print_errors_fp(stderr);
-		sed_kmip_deinit(ctx);
-		return -ENOENT;
+		goto error;
 	}
 
 	return status;
+
+error:
+	ERR_print_errors_fp(stderr);
+	sed_kmip_deinit(ctx);
+
+	return -ENOENT;
 }
 
 void sed_kmip_deinit(struct sed_kmip_ctx *ctx)
 {
-	if (ctx->bio != NULL) {
+	if (ctx->bio) {
 		BIO_free_all(ctx->bio);
 		ctx->bio = NULL;
 	}
 
-	if (ctx->ssl_ctx != NULL) {
+	if (ctx->ssl_ctx) {
 		SSL_CTX_free(ctx->ssl_ctx);
 		ctx->ssl_ctx = NULL;
 	}
 
-	if (ctx->ssl != NULL)
+	if (ctx->ssl)
 		ctx->ssl = NULL;
 }
 
 int sed_kmip_connect(struct sed_kmip_ctx *ctx)
 {
-	if (ctx == NULL)
+	if (!ctx)
 		return -EINVAL;
 
 	ctx->bio = BIO_new_ssl_connect(ctx->ssl_ctx);
 	BIO_get_ssl(ctx->bio, &ctx->ssl);
 
-	if (ctx->ssl == NULL) {
+	if (!ctx->ssl) {
 		sedcli_printf(LOG_ERR, "Can't locate SSL pointer\n");
-		ERR_print_errors_fp(stderr);
-		SSL_CTX_free(ctx->ssl_ctx);
-		return -ECONNREFUSED;
+		goto error;
 	}
 
 	/* No retries */
@@ -128,12 +126,15 @@ int sed_kmip_connect(struct sed_kmip_ctx *ctx)
 
 	if (BIO_do_connect(ctx->bio) <= 0) {
 		sedcli_printf(LOG_ERR, "Error connecting to KMIP server\n");
-		ERR_print_errors_fp(stderr);
-		sed_kmip_deinit(ctx);
-		return -ECONNREFUSED;
+		goto error;
 	}
 
 	return 0;
+
+error:
+	ERR_print_errors_fp(stderr);
+	sed_kmip_deinit(ctx);
+	return -ECONNREFUSED;
 }
 
 int sed_kmip_gen_platform_key(struct sed_kmip_ctx *ctx,
@@ -141,7 +142,7 @@ int sed_kmip_gen_platform_key(struct sed_kmip_ctx *ctx,
 {
 	int result;
 
-	if (ctx == NULL || pek_id == NULL || pek_id_size == NULL)
+	if (!ctx || !pek_id || !pek_id_size)
 		return -EINVAL;
 
 	/* Send the request message. */
@@ -149,8 +150,8 @@ int sed_kmip_gen_platform_key(struct sed_kmip_ctx *ctx,
 					       pek_id, pek_id_size);
 
 	SEDCLI_DEBUG_PARAM("Creating symmetric key finished status=%d "
-			   "pek_id=%s\n", result,
-			   result == KMIP_STATUS_SUCCESS ? *pek_id : "");
+				   "pek_id=%s\n", result,
+				   result == KMIP_STATUS_SUCCESS ? *pek_id : "");
 
 	/* Handle the response results. */
 	if (result < 0)
@@ -161,22 +162,21 @@ int sed_kmip_gen_platform_key(struct sed_kmip_ctx *ctx,
 }
 
 int sed_kmip_get_platform_key(struct sed_kmip_ctx *ctx,
-			      char *key_id, int key_id_size,
-			      char **key, int *key_size)
+			      char *pek_id, int pek_id_size,
+			      char **pek, int *pek_size)
 {
 	int result;
 
-	if (ctx == NULL || key_id == NULL || key_id_size == 0 || key == NULL ||
-	    key_size == NULL)
+	if (!ctx || !pek_id || !pek_id_size || !pek || !pek_size)
 		return -EINVAL;
 
 	/* Send the request message. */
-	result = kmip_bio_get_symmetric_key(ctx->bio, key_id, key_id_size,
-					    key, key_size);
+	result = kmip_bio_get_symmetric_key(ctx->bio, pek_id, pek_id_size,
+					    pek, pek_size);
 
 	SEDCLI_DEBUG_PARAM("Retrieving symmetric key finished status=%d "
 			   "key_size=%d[B]\n", result,
-			   result == KMIP_STATUS_SUCCESS ? *key_size : 0);
+			   result == KMIP_STATUS_SUCCESS ? *pek_size : 0);
 
 	/* Handle the response results. */
 	if (result < 0)
