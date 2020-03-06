@@ -4,6 +4,8 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
 
+SHELL := /bin/bash
+
 ifeq (, $(filter $(MAKECMDGOALS), clean distclean))
 ifeq ("$(wildcard config.mk config.h)", "")
 $(error Run ./configure before invoking make)
@@ -43,6 +45,7 @@ KMIP_OBJS = argp.o
 KMIP_OBJS += metadata_serializer.o
 KMIP_OBJS += config_file.o
 KMIP_OBJS += crypto_lib.o
+KMIP_OBJS += kmip_lib.o
 endif
 
 ALL_TARGETS = $(TARGET)-static $(TARGET)-dynamic
@@ -65,9 +68,12 @@ $(TARGET).a: $(patsubst %,$(OBJDIR)%,$(OBJS))
 	@echo "  AR " $@
 	@ar rcs $@ $^
 
-$(TARGET)-kmip.a: $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
+$(TARGET)-kmip.a: libkmip.a $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
 	@echo "  AR " $@
 	@ar rcs $@ $(patsubst %,$(OBJDIR)%,$(KMIP_OBJS))
+
+libkmip.a:
+	@pushd . > /dev/null && cd libkmip && make $@ && popd > /dev/null
 
 #
 # Static library
