@@ -57,7 +57,7 @@ static int do_generic_opal(int fd, const struct sed_key *key,
 }
 
 static int do_generic_lkul(int fd, const struct sed_key *key,
-					enum sed_user user, enum SED_ACCESS_TYPE lock_type, uint8_t lr,
+					enum SED_AUTHORITY user, enum SED_ACCESS_TYPE lock_type, uint8_t lr,
 					bool sum, unsigned long ioctl_cmd)
 {
 	struct opal_lock_unlock oln = { };
@@ -257,7 +257,7 @@ int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct 
 	struct opal_new_pw pw = { };
 	int fd = dev->fd;
 
-	if (old_key == NULL || new_key == NULL || old_key->len == 0 || new_key->len == 0 || auth != SED_ADMIN) {
+	if (old_key == NULL || new_key == NULL || old_key->len == 0 || new_key->len == 0 || auth != SED_ADMIN1) {
 		SEDCLI_DEBUG_MSG("Invalid arguments, please try again\n");
 		return -EINVAL;
 	}
