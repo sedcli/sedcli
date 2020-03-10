@@ -14,8 +14,25 @@
 
 #include "argp.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
 static struct termios term;
 extern sedcli_printf_t sedcli_printf;
+
+static char *allowed_lock_type[] = {"RO", "RW", "LK"};
+
+int get_lock_type(const char *lock_type)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(allowed_lock_type); i++) {
+		if (!strcmp(allowed_lock_type[i], lock_type)) {
+			return (1 << i);
+		}
+	}
+
+	return -1;
+}
 
 static void echo_disable()
 {

@@ -20,8 +20,6 @@
 #include "argp.h"
 #include "sedcli_util.h"
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-
 #define SED_MIN_KEY_LEN (8)
 
 #define SEDCLI_TITLE "Self-Encrypting Drive command line interface (sedcli)"
@@ -200,8 +198,6 @@ struct sedcli_options {
 
 static struct sedcli_options *opts = NULL;
 
-static char *allowed_lock_type[] = {"RO", "RW", "LK"};
-
 enum sed_print_flags {
 	SED_NORMAL,
 	SED_UDEV,
@@ -263,19 +259,6 @@ int reverttper_handle_opts(char *opt, char **arg)
 	}
 
 	return 0;
-}
-
-static int get_lock_type(const char *lock_type)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(allowed_lock_type); i++) {
-		if (0 == strcmp(allowed_lock_type[i], lock_type)) {
-			return (1 << i);
-		}
-	}
-
-	return -1;
 }
 
 int lock_unlock_handle_opts(char *opt, char **arg)
