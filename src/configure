@@ -126,27 +126,23 @@ if [ "${kmip_enabled}" == "yes" ]; then
 	popd > /dev/null
 
 	cat > $TMP_SRC <<EOF
-#include <openssl/hmac.h>
+#include <stdio.h>
+#include <openssl/opensslv.h>
 
 int main(int argc, char **argv)
 {
-	HMAC_CTX *ctx;
-
-	ctx = HMAC_CTX_new();
-	HMAC_CTX_reset(ctx);
-	HMAC_CTX_free(ctx);
+	printf("%s\n", OPENSSL_VERSION_TEXT);
 
 	return 0;
 }
 EOF
 
-	if [ "${ret_code}" -eq "0" ]; then
-		print_status "KMIP support" "yes"
+	if [ "${ret_code}" -eq "0" ] && test_compile "openssl" "" "-lcrypto -lssl"; then
+		openssl_ver="`${TMP_BIN}`"
+		print_status "KMIP support" "yes (detected ${openssl_ver})"
 		app_config_mk "CONFIG_KMIP=y"
 		app_config_mk "INCLUDES+=libkmip"
-		app_config_mk "LDFLAGS_KMIP+=-Llibkmip -lkmip"
-		app_config_mk "INCLUDES+=openssl"
-		app_config_mk "LDFLAGS_KMIP+=-Lopenssl -lcrypto -lssl"
+		app_config_mk "LDFLAGS_KMIP+=-Llibkmip -lkmip -lcrypto -lssl"
 	else
 		print_status "KMIP support" "no"
 	fi
