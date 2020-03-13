@@ -1,0 +1,24 @@
+SUBSYSTEM!="block", GOTO="sedcli_end"
+KERNEL!="nvme*[0-9]n*[0-9]", GOTO="sedcli_end"
+ACTION!="add", GOTO="sedcli_end"
+ENV{DEVTYPE}!="disk", GOTO="sedcli_end"
+
+# Perform Discovery to detect if disk is SED and its state
+IMPORT{program}="/usr/sbin/sedcli -D -d $env{DEVNAME} -f udev"
+
+ENV{DEV_SED_COMPATIBLE}=="ENABLED", GOTO="check_sedcli_lock"
+ENV{DEV_SED_COMPATIBLE}=="DISABLED", GOTO="sedcli_end"
+
+LABEL="check_sedcli_lock"
+ENV{DEV_SED_LOCKED}=="DISABLED", GOTO="sedcli_provision"
+ENV{DEV_SED_LOCKED}=="ENABLED", GOTO="sedcli_unlock"
+
+LABEL="sedcli_provision"
+# Intial provisioning of the device
+RUN+="/usr/sbin/sedcli-kmip -P -d $env{DEVNAME}", GOTO="sedcli_end"
+
+LABEL="sedcli_unlock"
+# Unlock the device
+RUN+="/usr/sbin/sedcli-kmip -L -d $env{DEVNAME} -t RW", GOTO="sedcli_end"
+
+LABEL="sedcli_end"
