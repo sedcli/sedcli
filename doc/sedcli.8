@@ -49,6 +49,11 @@ take ownership, activate LSP, enable global range). It is also possible to
 update Admin1 password for Locking SP.
 
 .SH OPTIONS
+
+.IP "\fB\-D -d <device> [-f {normal|udev}]\fR or \fB\-\-discovery --device <device> [--format {normal|udev}]\fR"
+Performs Level 0 Discovery and prints out info in human-readable (default) or
+machine friendly format.
+
 .IP "\fB\-O -d <device>\fR or \fB\-\-ownership --device <device>\fR"
 Takes ownership of the device.
 
@@ -57,6 +62,11 @@ Activates Locking SP.
 
 .IP "\fB\-R -d <device> [-i]\fR or \fB\-\-revert --device <device> [--psid]\fR"
 Reverts TPer to Manufactured-Inactivate state using either SID or PSID authority.
+
+.IP "\fB\-S -d <device>\fR or \fB\-\-setup-global-range --device <device>\fR"
+Sets Read Lock Enabled (RLE) and Write Lock Enabled (WLE) bis for global locking
+range. This effectively enables locking of all user data. Locking will start
+after power cycle or when explicitly locked using \fb\-\-lock-unlock\fR command.
 
 .IP "\fB\-L -d <device> -t <accesstype>\fR or \fB\-\-lock-unlock --device <device> --accesstype {RO|RW|LK}\fR"
 .IP
@@ -75,11 +85,15 @@ Updates password for Admin1 authority in Locking SP.
 Prints version of sedcli.
 
 .IP "\fB\-H\fR or \fB\-\-help\fR"
-Prints help on usage.
+Prints global help on available commands and usage
 
+.IP "To print command specific help use following syntax:"
+.IP "\fBsedcli <command> -H\fR or \fBsedcli <command> --help\fR"
+.IP "For example:"
+.IP "\fBsedcli -D -H\fR or \fBsedcli --discovery --help\fR"
 
 .SH COPYRIGHT
-Copyright(c) 2018-2019 by the Intel Corporation.
+Copyright(c) 2018-2020 by the Intel Corporation.
 
 .SH AUTHOR
 This manual page was created by Andrzej Jakowski <andrzej.jakowski@intel.com>
