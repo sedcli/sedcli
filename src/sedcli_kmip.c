@@ -192,7 +192,7 @@ static int handle_provision(void)
 {
 	struct sed_kmip_ctx *ctx = NULL;
 	struct sed_device *sed_dev = NULL;
-	struct sed_key dek_key, auth_key;
+	struct sed_key *key = NULL; /* [0] - DEK, [1] - existing key*/
 	struct sedcli_metadata *meta = NULL;
 	int pek_id_size = 0, pek_size = 0, status = 0, auth_len;
 	uint8_t *iv = NULL, *pek = NULL, *enc_dek = NULL, *pek_id = NULL,
@@ -215,10 +215,17 @@ static int handle_provision(void)
 		return -1;
 	}
 
+	key = alloc_locked_buffer(2 * sizeof(*key));
+	if (!key) {
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
+
 	ctx = malloc(sizeof(*ctx));
-	if (ctx == NULL) {
-		sedcli_printf(LOG_ERR, "Can't allocate memory\n");
-		return -1;
+	if (!ctx) {
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		status = -ENOMEM;
+		goto deinit;
 	}
 
 	status = sed_kmip_init(ctx, conf_stat_file->kmip_ip,
@@ -273,7 +280,8 @@ static int handle_provision(void)
 
 	meta = sedcli_metadata_alloc_buffer();
 	if (!meta) {
-		sedcli_printf(LOG_ERR, "Can't allocate memory\n");
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		status = -ENOMEM;
 		goto deinit;
 	}
 
@@ -295,14 +303,14 @@ static int handle_provision(void)
 		goto deinit;
 	}
 
-	status = get_random_bytes(dek_key.key, SED_MAX_KEY_LEN);
+	status = get_random_bytes(key[0].key, SED_MAX_KEY_LEN);
 	if (status) {
 		sedcli_printf(LOG_ERR, "Error while generating DEK\n");
 		goto deinit;
 	}
-	dek_key.len = SED_MAX_KEY_LEN;
+	key[0].len = SED_MAX_KEY_LEN;
 
-	status = encrypt_dek(dek_key.key, dek_key.len, (uint8_t *) meta,
+	status = encrypt_dek(key[0].key, key[0].len, (uint8_t *) meta,
 			     auth_len, enc_dek, SED_MAX_KEY_LEN, pek, pek_size,
 			     iv, IV_SIZE, tag, TAG_SIZE);
 	if (status < 0) {
@@ -322,20 +330,20 @@ static int handle_provision(void)
 	 * Otherwise it is initial provision path/
 	 */
 	if (!backup_file_path) {
-		status = sed_get_msid_pin(sed_dev, &auth_key);
+		status = sed_get_msid_pin(sed_dev, &key[1]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while reading MSID "
 					       "PIN\n");
 			goto deinit;
 		}
 
-		status = sed_activatelsp(sed_dev, &auth_key);
+		status = sed_activatelsp(sed_dev, &key[1]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while activating LSP\n");
 			goto deinit;
 		}
 
-		status = sed_ds_add_anybody_get(sed_dev, &auth_key);
+		status = sed_ds_add_anybody_get(sed_dev, &key[1]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while updating "
 					       "permissions for anybody "
@@ -343,7 +351,7 @@ static int handle_provision(void)
 			goto deinit;
 		}
 
-		status = sed_ds_write(sed_dev, SED_ADMIN1, &auth_key,
+		status = sed_ds_write(sed_dev, SED_ADMIN1, &key[1],
 				      (uint8_t *) meta, SEDCLI_METADATA_SIZE,
 				      0);
 		if (status) {
@@ -352,21 +360,21 @@ static int handle_provision(void)
 			goto deinit;
 		}
 
-		status = sed_setpw(sed_dev, SED_SID, &auth_key, &dek_key);
+		status = sed_setpw(sed_dev, SED_SID, &key[1], &key[0]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while updating pin for "
 					       "SID authority\n");
 			goto deinit;
 		}
 
-		status = sed_setpw(sed_dev, SED_ADMIN1, &auth_key, &dek_key);
+		status = sed_setpw(sed_dev, SED_ADMIN1, &key[1], &key[0]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while updating pin for "
 					       "Admin1 authority\n");
 			goto deinit;
 		}
 
-		status = sed_setup_global_range(sed_dev, &dek_key);
+		status = sed_setup_global_range(sed_dev, &key[0]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while setting up global "
 					       "locking range\n");
@@ -374,11 +382,11 @@ static int handle_provision(void)
 		}
 
 	} else {
-		status = extract_key_from_backup(&auth_key);
+		status = extract_key_from_backup(&key[1]);
 		if (status)
 			goto deinit;
 
-		status = sed_ds_write(sed_dev, SED_ADMIN1, &auth_key,
+		status = sed_ds_write(sed_dev, SED_ADMIN1, &key[1],
 				      (uint8_t *) meta, SEDCLI_METADATA_SIZE,
 				      0);
 		if (status) {
@@ -387,14 +395,14 @@ static int handle_provision(void)
 			goto deinit;
 		}
 
-		status = sed_setpw(sed_dev, SED_SID, &auth_key, &dek_key);
+		status = sed_setpw(sed_dev, SED_SID, &key[1], &key[0]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while updating pin for "
 					       "SID authority\n");
 			goto deinit;
 		}
 
-		status = sed_setpw(sed_dev, SED_ADMIN1, &auth_key, &dek_key);
+		status = sed_setpw(sed_dev, SED_ADMIN1, &key[1], &key[0]);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while updating pin for "
 					       "Admin1 authority\n");
@@ -414,6 +422,9 @@ deinit:
 
 	if (ctx)
 		free(ctx);
+
+	if (key)
+		free_locked_buffer(key, 2 * sizeof(*key));
 
 	return status;
 }
@@ -438,15 +449,15 @@ static int read_key_from_datastore(struct sed_device *sed_dev,
 
 	ctx = malloc(sizeof(*ctx));
 	if (!ctx) {
-		sedcli_printf(LOG_ERR, "Can't allocate memory\n");
-		ret = -1;
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		ret = -ENOMEM;
 		goto deinit;
 	}
 
 	meta = sedcli_metadata_alloc_buffer();
 	if (!meta) {
-		sedcli_printf(LOG_ERR, "Can't allocate memory\n");
-		ret = -1;
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		ret = -ENOMEM;
 		goto deinit;
 	}
 
@@ -528,8 +539,7 @@ deinit:
 static int handle_backup(void)
 {
 	int ret = 0, status, offset;
-	struct sed_key dek_key;
-	uint8_t key[SED_MAX_KEY_LEN];
+	struct sed_key *key = NULL; /* [0] - DEK key, [1] - key derived from password */
 	uint8_t *buffer = NULL, *tag = NULL, *salt = NULL, *enc_key = NULL,
 		*iv = NULL;
 	uint8_t buffer_len;
@@ -541,9 +551,16 @@ static int handle_backup(void)
 		goto deinit;
 	}
 
-	status = read_key_from_datastore(sed_dev, &dek_key);
+	key = alloc_locked_buffer(2 * sizeof(*key));
+	if (!key) {
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		ret = -ENOMEM;
+		goto deinit;
+	}
+
+	status = read_key_from_datastore(sed_dev, &key[0]);
 	if (status) {
-		sedcli_printf(LOG_ERR, "Error while decrypting DEK key\n");
+		sedcli_printf(LOG_ERR, "Error while accessing datastore\n");
 		goto deinit;
 	}
 
@@ -551,7 +568,8 @@ static int handle_backup(void)
 	buffer = malloc(buffer_len);
 	if (!buffer) {
 		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
-		return -1;
+		ret = -ENOMEM;
+		goto deinit;
 	}
 
 	offset = 0;
@@ -565,21 +583,6 @@ static int handle_backup(void)
 	offset += SED_MAX_KEY_LEN;
 
 	tag = &buffer[offset];
-
-	opts = malloc(sizeof(*opts));
-	if (!opts) {
-		free(buffer);
-		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
-		return -1;
-	}
-	memset(opts, 0, sizeof(*opts));
-
-	status = mlock(opts, sizeof(*opts));
-	if (status) {
-		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
-		ret = -1;
-		goto deinit;
-	}
 
 	sedcli_printf(LOG_INFO, "Enter new password for backup file: ");
 
@@ -620,15 +623,15 @@ static int handle_backup(void)
 	}
 
 	status = derive_key((uint8_t *)opts->pwd, opts->pwd_len, salt,
-			    SALT_SIZE, key, SED_MAX_KEY_LEN);
+			    SALT_SIZE, key[1].key, SED_MAX_KEY_LEN);
 	if (status) {
 		sedcli_printf(LOG_ERR, "Error while deriving key\n");
 		ret = -1;
 		goto deinit;
 	}
 
-	status = encrypt_dek(dek_key.key, SED_MAX_KEY_LEN, NULL, 0, enc_key,
-			     SED_MAX_KEY_LEN, key, SED_MAX_KEY_LEN, iv,
+	status = encrypt_dek(key[0].key, SED_MAX_KEY_LEN, NULL, 0, enc_key,
+			     SED_MAX_KEY_LEN, key[1].key, SED_MAX_KEY_LEN, iv,
 			     IV_SIZE, tag, TAG_SIZE);
 
 	if (status < 0) {
@@ -653,11 +656,8 @@ deinit:
 	if (buffer)
 		free(buffer);
 
-	if (opts) {
-		memset(opts, 0, sizeof(*opts));
-		munlock(opts, sizeof(*opts));
-		free(opts);
-	}
+	if (key)
+		free_locked_buffer(key, 2 * sizeof(*key));
 
 	sed_deinit(sed_dev);
 
@@ -669,8 +669,7 @@ static int extract_key_from_backup(struct sed_key *dek_key)
 	int status, ret = 0, read_buffer_len, offset;
 	uint8_t buffer[SED_MAX_KEY_LEN];
 	uint8_t read_buffer[SED_MAX_KEY_LEN + TAG_SIZE + SALT_SIZE + IV_SIZE];
-	uint8_t *tag, *enc_key, *salt;
-	uint8_t key[SED_MAX_KEY_LEN + IV_SIZE], *iv = &key[SED_MAX_KEY_LEN];
+	uint8_t *tag, *enc_key, *salt, *key = NULL, *iv;
 
 	read_buffer_len = SALT_SIZE + IV_SIZE + SED_MAX_KEY_LEN + TAG_SIZE;
 
@@ -689,27 +688,19 @@ static int extract_key_from_backup(struct sed_key *dek_key)
 
 	tag = &read_buffer[offset];
 
-	opts = malloc(sizeof(*opts));
-	if (!opts) {
-		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
-
-		return -1;
-	}
-	memset(opts, 0, sizeof(*opts));
-
-	status = mlock(opts, sizeof(*opts));
-	if (status) {
-		free(opts);
-		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
-		return -1;
-	}
-
 	sedcli_printf(LOG_INFO, "Enter password: ");
+
+	key = alloc_locked_buffer(SED_MAX_KEY_LEN);
+	if (!key) {
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		ret = -ENOMEM;
+		goto deinit;
+	}
 
 	status = get_password(opts->pwd, &opts->pwd_len, BACKUP_FILE_MIN_LEN,
 			      BACKUP_FILE_MAX_LEN);
 	if (status) {
-		ret = -1;
+		ret = status;
 		goto deinit;
 	}
 
@@ -734,12 +725,8 @@ static int extract_key_from_backup(struct sed_key *dek_key)
 	dek_key->len = SED_MAX_KEY_LEN;
 
 deinit:
-	if (opts) {
-		memset(opts, 0, sizeof(*opts));
-		munlock(opts, sizeof(*opts));
-		free(opts);
-		opts = NULL;
-	}
+	if (key)
+		free_locked_buffer(key, SED_MAX_KEY_LEN);
 
 	return ret;
 }
@@ -748,35 +735,42 @@ static int handle_lock_unlock(void)
 {
 	struct sed_device *dev = NULL;
 	int ret, status;
-	struct sed_key dek;
+	struct sed_key *dek = NULL;
+
+	dek = alloc_locked_buffer(sizeof(*dek));
+
+	if (!dek) {
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
 
 	ret = sed_init(&dev, dev_path);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the "
 				       "dev: %s\n", dev_path);
-		return ret;
+		goto deinit;
 	}
 
 	if (!backup_file_path) {
-		status = read_key_from_datastore(dev, &dek);
+		status = read_key_from_datastore(dev, dek);
 		if (status) {
 			sedcli_printf(LOG_ERR, "Error while decrypting "
 					       "DEK key\n");
 			goto deinit;
 		}
 
-		ret = sed_lock_unlock(dev, &dek, lock_type);
+		ret = sed_lock_unlock(dev, dek, lock_type);
 		if (ret)
 			sedcli_printf(LOG_ERR, "Error while unlocking drive\n");
 	} else {
-		status = extract_key_from_backup(&dek);
+		status = extract_key_from_backup(dek);
 
 		if (status) {
 			ret = -1;
 			goto deinit;
 		}
 
-		ret = sed_lock_unlock(dev, &dek, lock_type);
+		ret = sed_lock_unlock(dev, dek, lock_type);
 		if (ret) {
 			sedcli_printf(LOG_ERR, "Error while changing lock "
 					       "state\n");
@@ -785,6 +779,9 @@ static int handle_lock_unlock(void)
 	}
 
 deinit:
+	if (dek)
+		free_locked_buffer(dek, sizeof(*dek));
+
 	sed_deinit(dev);
 
 	return ret;
@@ -792,7 +789,7 @@ deinit:
 
 int main(int argc, char *argv[])
 {
-	int blocked = 0;
+	int blocked = 0, status;
 	app app_values;
 
 	app_values.name = argv[0];
@@ -802,5 +799,17 @@ int main(int argc, char *argv[])
 	app_values.man = "sedcli-kmip";
 	app_values.block = blocked;
 
-	return args_parse(&app_values, sedcli_commands, argc, argv);
+	opts = alloc_locked_buffer(sizeof(*opts));
+
+	if (!opts) {
+		sedcli_printf(LOG_ERR, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
+	memset(opts, 0, sizeof(*opts));
+
+	status = args_parse(&app_values, sedcli_commands, argc, argv);
+
+	free_locked_buffer(opts, sizeof(*opts));
+
+	return status;
 }
