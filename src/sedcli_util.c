@@ -9,6 +9,7 @@
 #include <errno.h>
 
 #include <sys/syslog.h>
+#include <sys/mman.h>
 
 #include <libsed.h>
 
@@ -98,4 +99,34 @@ err:
 	memset(temp, 0, dest);
 	echo_enable();
 	return ret;
+}
+
+void *alloc_locked_buffer(size_t size)
+{
+	void *buf;
+	int status;
+
+	buf = malloc(size);
+
+	if (!buf)
+		return NULL;
+
+	status = mlock(buf, size);
+
+	if (status) {
+		free(buf);
+		return NULL;
+	}
+
+	return buf;
+}
+
+void free_locked_buffer(void *buf, size_t buf_size)
+{
+	if (!buf)
+		return;
+
+	memset(buf, 0, buf_size);
+	munlock(buf, buf_size);
+	free(buf);
 }

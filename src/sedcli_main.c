@@ -13,7 +13,6 @@
 #include <unistd.h>
 
 #include <sys/stat.h>
-#include <sys/mman.h>
 
 #include <libsed.h>
 
@@ -688,25 +687,16 @@ int main(int argc, char *argv[])
 	app_values.man = "sedcli";
 	app_values.block = blocked;
 
-	opts = malloc(sizeof(*opts));
+	opts = alloc_locked_buffer(sizeof(*opts));
 
 	if (opts == NULL) {
 		sedcli_printf(LOG_ERR, "Failed to allocated memory\n");
 		return -ENOMEM;
 	}
 
-	status = mlock(opts, sizeof(*opts));
-	if (status != 0) {
-		free(opts);
-		sedcli_printf(LOG_ERR, "Failed to allocated memory\n");
-		return -1;
-	}
-
 	status = args_parse(&app_values, sedcli_commands, argc, argv);
 
-	memset(opts, 0, sizeof(*opts));
-	munlock(opts, sizeof(*opts));
-	free(opts);
+	free_locked_buffer(opts, sizeof(*opts));
 
 	return status;
 }
