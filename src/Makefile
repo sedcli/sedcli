@@ -134,7 +134,7 @@ install-$(TARGET):
 install-$(TARGET)-kmip: install-$(TARGET)
 	@echo " Installing $(TARGET)-kmip"
 	install -m 755 $(TARGET)-kmip /usr/sbin/$(TARGET)-kmip
-	install -m 644 ../lib/udev/rules.d/63-sedcli.rules /etc/udev/rules.d/
+	install -m 644 ../etc/udev/rules.d/63-sedcli.rules /etc/udev/rules.d/
 	install -m 755 -d /etc/sedcli /etc/sedcli/certs
 	install -m 644 ../etc/sedcli/sedcli.conf /etc/sedcli/
 	touch /etc/sedcli/sedcli_kmip && chmod 644 /etc/sedcli/sedcli_kmip
