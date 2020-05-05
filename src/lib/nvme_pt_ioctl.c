@@ -1378,7 +1378,8 @@ static struct opal_req_item opal_set_mbr_cmd[] = {
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_ENDNAME } },
 };
 
-static int opal_set_mbr(int fd, struct opal_device *dev, uint8_t val, uint8_t en_disable)
+static int opal_set_mbr(int fd, struct opal_device *dev, uint8_t val,
+			uint8_t en_disable)
 {
 	int ret = 0;
 
@@ -1386,7 +1387,8 @@ static int opal_set_mbr(int fd, struct opal_device *dev, uint8_t val, uint8_t en
 	opal_set_mbr_cmd[5].val.byte = en_disable;
 
 	prepare_req_buf(dev, opal_set_mbr_cmd, ARRAY_SIZE(opal_set_mbr_cmd),
-			opal_uid[OPAL_MBRCONTROL_UID], opal_method[OPAL_SET_METHOD_UID]);
+			opal_uid[OPAL_MBRCONTROL_UID],
+			opal_method[OPAL_SET_METHOD_UID]);
 
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
 
@@ -1395,7 +1397,14 @@ static int opal_set_mbr(int fd, struct opal_device *dev, uint8_t val, uint8_t en
 	return ret;
 }
 
-static int opal_set_mbr_en_disable(int fd, struct opal_device *dev, uint8_t en_disable)
+static int opal_set_mbr_done(int fd, struct opal_device *dev,
+			     uint8_t en_disable)
+{
+	return opal_set_mbr(fd, dev, OPAL_MBRDONE, en_disable);
+}
+
+static int opal_set_mbr_en_disable(int fd, struct opal_device *dev,
+				   uint8_t en_disable)
 {
 	return opal_set_mbr(fd, dev, OPAL_MBRENABLE, en_disable);
 }
@@ -2006,53 +2015,55 @@ end_sessn:
 	return ret;
 }
 
-int opal_shadow_mbr_pt(struct sed_device *dev, const char *password,
-		uint8_t key_len, bool mbr)
+int opal_mbr_done_pt(struct sed_device *dev, const struct sed_key *key,
+		     bool mbr_done)
 {
-	struct sed_key disk_key;
-	int ret = 0;
-	uint8_t en_dis, enable_disable;
+	int ret;
+	uint8_t done;
 	struct opal_device *opal_dev;
 
-	if (password == NULL) {
-		SEDCLI_DEBUG_MSG("Need ADMIN1 password for mbr shadow "\
-				"enable/disable\n");
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("User must provide ADMIN1 password\n");
 		return -EINVAL;
 	}
 
 	opal_dev = dev->priv;
 
-	if (mbr) {
-		enable_disable = OPAL_MBR_ENABLE;
-	} else {
-		enable_disable = OPAL_MBR_DISABLE;
+	done = mbr_done ? OPAL_TRUE : OPAL_FALSE;
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_set_mbr_done(dev->fd, opal_dev, done);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
+			bool mbr)
+{
+	int ret = 0;
+	uint8_t enable_disable;
+	struct opal_device *opal_dev;
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("Need ADMIN1 password for mbr shadow enable/"
+				 "disable\n");
+		return -EINVAL;
 	}
 
-	en_dis = (enable_disable == OPAL_MBR_ENABLE) ? OPAL_TRUE :
-		OPAL_FALSE;
+	opal_dev = dev->priv;
 
-	ret = sed_key_init(&disk_key, password, key_len);
-	if (ret) {
-		return ret;
-	}
+	enable_disable = mbr ? OPAL_TRUE : OPAL_FALSE;
 
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret)
 		goto end_sessn;
 
-	ret = opal_set_mbr(dev->fd, opal_dev, OPAL_MBRDONE, en_dis);
-	if (ret)
-		goto end_sessn;
-
-	ret = opal_end_session(dev->fd, opal_dev);
-	if (ret)
-		goto end_sessn;
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
-	if (ret)
-		goto end_sessn;
-
-	ret = opal_set_mbr_en_disable(dev->fd, opal_dev, en_dis);
+	ret = opal_set_mbr_en_disable(dev->fd, opal_dev, enable_disable);
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);

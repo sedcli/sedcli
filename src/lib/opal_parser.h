@@ -49,7 +49,7 @@ enum opal_token_type {
 };
 
 enum opal_mbr {
-	OPAL_MBR_ENABLE = 0x0,
+	OPAL_MBR_ENABLE = 0x00,
 	OPAL_MBR_DISABLE = 0x01,
 };
 
