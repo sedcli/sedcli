@@ -32,6 +32,7 @@ static int reverttper_handle_opts(char *opt, char **arg);
 static int lock_unlock_handle_opts(char *opt, char **arg);
 static int setup_global_range_handle_opts(char *opt, char **arg);
 static int setpw_handle_opts(char *opt, char **arg);
+static int shadow_mbr_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -42,6 +43,7 @@ static int handle_reverttper(void);
 static int handle_lock_unlock(void);
 static int handle_setup_global_range(void);
 static int handle_setpw(void);
+static int handle_shadow_mbr(void);
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -78,6 +80,12 @@ static cli_option setup_global_range_opts[] = {
 
 static cli_option setpw_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{0}
+};
+
+static cli_option shadow_mbr_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'m', "mbr", "Enable/Disable MBR", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
 	{0}
 };
 
@@ -161,6 +169,17 @@ static cli_command sedcli_commands[] = {
 		.help = NULL
 	},
 	{
+		.name = "shadow-mbr",
+		.short_name = 'M',
+		.desc = "Enable or Disable the MBR Shadow",
+		.long_desc = "Enable or Disable the MBR Shadow",
+		.options = shadow_mbr_opts,
+		.command_handle_opts = shadow_mbr_handle_opts,
+		.handle = handle_shadow_mbr,
+		.flags = 0,
+		.help = NULL
+	},
+	{
 		.name = "version",
 		.short_name = 'V',
 		.desc = "Print sedcli version",
@@ -193,6 +212,7 @@ struct sedcli_options {
 	int psid;
 	int lock_type;
 	int print_fmt;
+	int mbr;
 };
 
 static struct sedcli_options *opts = NULL;
@@ -288,6 +308,17 @@ int setpw_handle_opts(char *opt, char **arg)
 {
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	}
+
+	return 0;
+}
+
+int shadow_mbr_handle_opts(char *opt, char **arg)
+{
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "mbr")) {
+		opts->mbr = 1;
 	}
 
 	return 0;
@@ -652,6 +683,34 @@ static int handle_setpw(void)
 	sed_deinit(dev);
 
 	return ret;
+}
+
+static int handle_shadow_mbr(void)
+{
+	struct sed_device *dev = NULL;
+	int ret;
+
+	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
+
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len,
+			   SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+        if (ret)
+                return -1;
+
+        ret = sed_init(&dev, opts->dev_path);
+        if (ret) {
+                sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
+			      opts->dev_path);
+                return ret;
+        }
+
+        ret = sed_shadowmbr(dev, &opts->pwd, opts->mbr);
+
+        print_sed_status(ret);
+
+        sed_deinit(dev);
+
+        return ret;
 }
 
 static int handle_version(void)

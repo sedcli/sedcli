@@ -256,6 +256,11 @@ int sed_ds_write(struct sed_device *dev, enum SED_AUTHORITY auth,
 /**
  *
  */
+int sed_shadowmbr(struct sed_device *dev, const struct sed_key *key, bool mbr);
+
+/**
+ *
+ */
 const char *sed_error_text(int sed_status);
 
 

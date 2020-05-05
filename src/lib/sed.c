@@ -34,8 +34,7 @@ typedef int (*setuplr)(struct sed_device *, const char *, uint8_t,
 			bool, bool);
 typedef int (*lock_unlock)(struct sed_device *, const struct sed_key *, enum SED_ACCESS_TYPE);
 typedef int (*set_pwd)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, const struct sed_key *);
-typedef int (*shadow_mbr)(struct sed_device *, const char *,
-			uint8_t, bool);
+typedef int (*shadow_mbr)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*eraselr)(struct sed_device *, const char *,
 			uint8_t, const char *, uint8_t , bool);
 typedef int (*ds_add_anybody_get)(struct sed_device *, const struct sed_key *);
@@ -278,10 +277,9 @@ int sed_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_
 	return curr_if->set_pwd_fn(dev, auth, old_key, new_key);
 }
 
-int sed_shadowmbr(struct sed_device *dev, const char *pass, uint8_t key_len,
-		  bool mbr)
+int sed_shadowmbr(struct sed_device *dev, const struct sed_key *key, bool mbr)
 {
-	return curr_if->shadow_mbr_fn(dev, pass, key_len, mbr);
+	return curr_if->shadow_mbr_fn(dev, key, mbr);
 }
 
 int sed_eraselr(struct sed_device *dev, const char *password,
