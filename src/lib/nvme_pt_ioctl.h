@@ -387,8 +387,11 @@ int opal_lock_unlock_pt(struct sed_device *dev, const struct sed_key *key,
 int opal_set_pwd_pt(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key);
 
-int opal_shadow_mbr_pt(struct sed_device *dev, const char *password,
-		uint8_t key_len, bool mbr);
+int opal_mbr_done_pt(struct sed_device *dev, const struct sed_key *key,
+		bool mbr_done);
+
+int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
+		bool mbr);
 
 int opal_eraselr_pt(struct sed_device *dev, const char *password,
 		uint8_t key_len, const char *user, const uint8_t lr, bool sum);

@@ -29,9 +29,11 @@ int sedopal_setup_global_range(struct sed_device *dev, const struct sed_key *key
 int sedopal_add_usr_to_lr(struct sed_device *dev, const char *key, uint8_t key_len,
 			const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr);
 
-int sedopal_shadowmbr(struct sed_device *dev, const char *password,
-		uint8_t key_len,
-		bool enable_mbr);
+int sedopal_shadowmbr(struct sed_device *dev, const struct sed_key *key,
+		      bool enable_mbr);
+
+int sedopal_mbrdone(struct sed_device *dev, const struct sed_key *key,
+		bool mbr_done);
 
 int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_key *old_key,
 		const struct sed_key *new_key);
