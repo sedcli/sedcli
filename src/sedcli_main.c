@@ -32,6 +32,7 @@ static int reverttper_handle_opts(char *opt, char **arg);
 static int lock_unlock_handle_opts(char *opt, char **arg);
 static int setup_global_range_handle_opts(char *opt, char **arg);
 static int setpw_handle_opts(char *opt, char **arg);
+static int mbr_control_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -42,6 +43,7 @@ static int handle_reverttper(void);
 static int handle_lock_unlock(void);
 static int handle_setup_global_range(void);
 static int handle_setpw(void);
+static int handle_mbr_control(void);
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -78,6 +80,13 @@ static cli_option setup_global_range_opts[] = {
 
 static cli_option setpw_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{0}
+};
+
+static cli_option mbr_control_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'e', "enable", "Set/Unset MBR Enable column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	{'m', "done", "Set/Unset MBR Done column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
 	{0}
 };
 
@@ -161,6 +170,17 @@ static cli_command sedcli_commands[] = {
 		.help = NULL
 	},
 	{
+		.name = "mbr-control",
+		.short_name = 'M',
+		.desc = "Enable/Disable MBR Shadow and Set/Unset MBR Done",
+		.long_desc = "Enable/Disable MBR Shadow and Set/Unset MBR Done",
+		.options = mbr_control_opts,
+		.command_handle_opts = mbr_control_handle_opts,
+		.handle = handle_mbr_control,
+		.flags = 0,
+		.help = NULL
+	},
+	{
 		.name = "version",
 		.short_name = 'V',
 		.desc = "Print sedcli version",
@@ -193,6 +213,8 @@ struct sedcli_options {
 	int psid;
 	int lock_type;
 	int print_fmt;
+	int enable;
+	int done;
 };
 
 static struct sedcli_options *opts = NULL;
@@ -288,6 +310,43 @@ int setpw_handle_opts(char *opt, char **arg)
 {
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	}
+
+	return 0;
+}
+
+static int get_mbr_flag(char *mbr_flag)
+{
+	if (mbr_flag == NULL) {
+		sedcli_printf(LOG_ERR, "User must provide TRUE/FALSE value\n");
+		return -EINVAL;
+	}
+
+	if (!strncasecmp(mbr_flag, "TRUE", 4))
+		return 1;
+	if (!strncasecmp(mbr_flag, "FALSE", 5))
+		return 0;
+
+	sedcli_printf(LOG_ERR, "Invalid value given by the user\n");
+	return -EINVAL;
+}
+
+bool mbr_enable = false;
+bool mbr_done = false;
+int mbr_control_handle_opts(char *opt, char **arg)
+{
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "enable")) {
+		mbr_enable = true;
+		opts->enable = get_mbr_flag(arg[0]);
+		if (opts->enable < 0)
+			return opts->enable;
+	} else if (!strcmp(opt, "done")) {
+		mbr_done = true;
+		opts->done = get_mbr_flag(arg[0]);
+		if (opts->done < 0)
+			return opts->done;
 	}
 
 	return 0;
@@ -651,6 +710,80 @@ static int handle_setpw(void)
 
 	sed_deinit(dev);
 
+	return ret;
+}
+
+static int check_current_levl0_discv(void)
+{
+	struct sed_opal_level0_discovery *discv = NULL;
+	int ret;
+
+	discv = malloc(sizeof(*discv));
+	if (discv == NULL) {
+		sedcli_printf(LOG_ERR, "Memory not allocated.\n");
+		return -ENOMEM;
+	}
+
+	ret = sed_level0_discovery(discv);
+	if (ret) {
+		if (ret == -EOPNOTSUPP)
+			sedcli_printf(LOG_ERR, "Command NOT supported for this "
+					"interface.\n");
+		else
+			sedcli_printf(LOG_ERR, "Error in level0 discovery\n");
+		goto free_mem;
+	}
+
+	/*
+	 * Check the current status of any level0 feture (Add them here)
+	 */
+	if (!discv->sed_locking.locking_en) {
+		sedcli_printf(LOG_INFO, "LSP NOT ACTIVATED\n");
+		ret = -1;
+	}
+
+free_mem:
+	free(discv);
+	return ret;
+}
+
+static int handle_mbr_control(void)
+{
+	struct sed_device *dev = NULL;
+	int ret;
+
+	ret = sed_init(&dev, opts->dev_path);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
+				opts->dev_path);
+		return ret;
+	}
+
+	ret = check_current_levl0_discv();
+	if (ret != -EOPNOTSUPP && ret != 0)
+		goto init_deinit;
+
+	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len,
+				SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto init_deinit;
+	}
+
+	if (mbr_enable) {
+		ret = sed_shadowmbr(dev, &opts->pwd, opts->enable);
+		if (ret)
+			goto print_deinit;
+	}
+
+	if (mbr_done)
+		ret = sed_mbrdone(dev, &opts->pwd, opts->done);
+
+print_deinit:
+	print_sed_status(ret);
+init_deinit:
+	sed_deinit(dev);
 	return ret;
 }
 
