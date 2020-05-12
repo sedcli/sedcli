@@ -1456,7 +1456,9 @@ put_tokens:
  */
 #define CMD_END_BYTES_NUM 7
 
-static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *data, uint64_t offset, uint64_t size)
+static int opal_generic_write_table(int fd, struct opal_device *dev,
+				    enum opaluid table, const uint8_t *data,
+				    uint64_t offset, uint64_t size)
 {
 	uint8_t *buf;
 	uint64_t len = 0, index = 0;
@@ -1466,26 +1468,24 @@ static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *da
 	if (size == 0)
 		return 0;
 
-	len = get_table_length(fd, dev, OPAL_DATASTORE_UID);
+	len = get_table_length(fd, dev, table);
 	if (len < 0) {
 		SEDCLI_DEBUG_MSG("Error retrieving table length\n");
 		return len;
 	}
-
-	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
+	SEDCLI_DEBUG_PARAM("Table length is: %lu\n", len);
 
 	if (size > len || offset > len - size) {
-		SEDCLI_DEBUG_PARAM("The data doesn't fit in the datastore table: Can't fit "\
-				"%lu in %lu\n", offset + size, len);
+		SEDCLI_DEBUG_PARAM("The data doesn't fit in the table (%lu v/s "\
+				"%lu)\n", offset + size, len);
 		return -ENOSPC;
 	}
 
 	while (index < size) {
-
 		buf = dev->req_buf + sizeof(struct opal_header);
 		buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
 
-		prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[OPAL_DATASTORE_UID],
+		prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[table],
 				 opal_method[OPAL_SET_METHOD_UID]);
 
 		pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTNAME);
@@ -1508,10 +1508,8 @@ static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *da
 		len = MIN(remaining_buff_size, (size - index));
 
 		pos += append_bytes(buf + pos, buf_len - pos, data, len);
-
 		pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDNAME);
 		prepare_cmd_end(buf, buf_len, &pos);
-
 		prepare_cmd_header(dev, buf, pos);
 
 		ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
@@ -1528,7 +1526,14 @@ static int opal_write_datastr(int fd, struct opal_device *dev, const uint8_t *da
 	return ret;
 }
 
-static struct opal_req_item opal_read_datastr_cmd[] = {
+static int opal_write_datastr(int fd, struct opal_device *dev,
+			const uint8_t *data, uint64_t offset, uint64_t size)
+{
+	return opal_generic_write_table(fd, dev, OPAL_DATASTORE_UID, data,
+					offset, size);
+}
+
+static struct opal_req_item opal_generic_read_table_cmd[] = {
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTROW } },
@@ -1551,7 +1556,9 @@ static struct opal_req_item opal_read_datastr_cmd[] = {
  */
 #define OPAL_MAX_READ_TABLE (0x7BD)
 
-static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uint64_t offset, uint64_t size)
+static int opal_generic_read_table(int fd, struct opal_device *dev,
+				   enum opaluid table, uint8_t *data,
+				   uint64_t offset, uint64_t size)
 {
 	int ret = 0;
 	uint64_t len = 0, index = 0, end_row = size - 1;
@@ -1561,28 +1568,30 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 	if (size == 0)
 		return 0;
 
-	len = get_table_length(fd, dev, OPAL_DATASTORE_UID);
+	len = get_table_length(fd, dev, table);
 	if (len < 0) {
 		SEDCLI_DEBUG_MSG("Error retrieving table length\n");
 		return len;
 	}
 
-	SEDCLI_DEBUG_PARAM("Datastore Table Length is: %lu\n", len);
+	SEDCLI_DEBUG_PARAM("Table Length is: %lu\n", len);
 
 	if (size > len || offset > len - size) {
-		SEDCLI_DEBUG_PARAM("Read size/offset exceeding the datastore table limits"\
+		SEDCLI_DEBUG_PARAM("Read size/offset exceeding the table limits"\
 				"%lu in %lu\n", offset + size, len);
 		return -EINVAL;
 	}
 
 	while (index < end_row) {
-		opal_read_datastr_cmd[3].val.uint = index + offset;
+		opal_generic_read_table_cmd[3].val.uint = index + offset;
 
 		len = MIN(OPAL_MAX_READ_TABLE, (end_row - index));
-		opal_read_datastr_cmd[7].val.uint = index + offset + len;
+		opal_generic_read_table_cmd[7].val.uint = index + offset + len;
 
-		prepare_req_buf(dev, opal_read_datastr_cmd, ARRAY_SIZE(opal_read_datastr_cmd),
-				opal_uid[OPAL_DATASTORE_UID], opal_method[OPAL_GET_METHOD_UID]);
+		prepare_req_buf(dev, opal_generic_read_table_cmd,
+				ARRAY_SIZE(opal_generic_read_table_cmd),
+				opal_uid[table],
+				opal_method[OPAL_GET_METHOD_UID]);
 
 		ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
 		if (ret) {
@@ -1601,6 +1610,13 @@ static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data, uin
 	}
 
 	return ret;
+}
+
+static int opal_read_datastr(int fd, struct opal_device *dev, uint8_t *data,
+			     uint64_t offset, uint64_t size)
+{
+	return opal_generic_read_table(fd, dev, OPAL_DATASTORE_UID, data,
+				       offset, size);
 }
 
 static int get_num_lrs(int fd, struct opal_device *dev)
