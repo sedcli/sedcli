@@ -393,6 +393,9 @@ int opal_mbr_done_pt(struct sed_device *dev, const struct sed_key *key,
 int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
 		bool mbr);
 
+int opal_write_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
+			const uint8_t *from, uint32_t size, uint32_t offset);
+
 int opal_eraselr_pt(struct sed_device *dev, const char *password,
 		uint8_t key_len, const char *user, const uint8_t lr, bool sum);
 

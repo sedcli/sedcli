@@ -1533,6 +1533,13 @@ static int opal_write_datastr(int fd, struct opal_device *dev,
 					offset, size);
 }
 
+static int opal_write_mbr(int fd, struct opal_device *dev, const uint8_t *data,
+			uint64_t offset, uint64_t size)
+{
+	return opal_generic_write_table(fd, dev, OPAL_MBR_UID, data, offset,
+					size);
+}
+
 static struct opal_req_item opal_generic_read_table_cmd[] = {
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTLIST } },
 	{ .type = OPAL_U8, .len = 1, .val = { .byte = OPAL_STARTNAME } },
@@ -2264,6 +2271,30 @@ int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
 		goto end_sessn;
 
 	ret = list_lr(dev->fd, opal_dev, lrs);
+
+end_sessn:
+	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_write_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
+			const uint8_t *from, uint32_t size, uint32_t offset)
+{
+	int ret;
+	struct opal_device *opal_dev;
+
+	if (from == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide a valid source pointer\n");
+		return -EINVAL;
+	}
+
+	opal_dev = dev->priv;
+
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
+	if (ret)
+		goto end_sessn;
+
+	ret = opal_write_mbr(dev->fd, opal_dev, from, offset, size);
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);
