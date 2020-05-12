@@ -36,6 +36,8 @@ typedef int (*lock_unlock)(struct sed_device *, const struct sed_key *, enum SED
 typedef int (*set_pwd)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, const struct sed_key *);
 typedef int (*shadow_mbr)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*mbr_done) (struct sed_device *, const struct sed_key *, bool);
+typedef int (*write_shadow_mbr)(struct sed_device *, const struct sed_key *,
+				const uint8_t *, uint32_t, uint32_t);
 typedef int (*eraselr)(struct sed_device *, const char *,
 			uint8_t, const char *, uint8_t , bool);
 typedef int (*ds_add_anybody_get)(struct sed_device *, const struct sed_key *);
@@ -60,6 +62,7 @@ struct opal_interface {
 	lock_unlock lock_unlock_fn;
 	set_pwd set_pwd_fn;
 	shadow_mbr shadow_mbr_fn;
+	write_shadow_mbr write_shadow_mbr_fn;
 	mbr_done mbr_done_fn;
 	eraselr eraselr_fn;
 	ds_add_anybody_get ds_add_anybody_get_fn;
@@ -87,6 +90,7 @@ static struct opal_interface opal_if = {
 	.set_pwd_fn = sedopal_setpw,
 	.shadow_mbr_fn = sedopal_shadowmbr,
 	.mbr_done_fn = sedopal_mbrdone,
+	.write_shadow_mbr_fn = NULL,
 	.eraselr_fn = sedopal_erase_lr,
 	.ds_add_anybody_get_fn = NULL,
 	.ds_read_fn = NULL,
@@ -111,6 +115,7 @@ static struct opal_interface opal_if = {
 	.lock_unlock_fn	= opal_lock_unlock_pt,
 	.set_pwd_fn = opal_set_pwd_pt,
 	.shadow_mbr_fn	= opal_shadow_mbr_pt,
+	.write_shadow_mbr_fn = opal_write_shadow_mbr_pt,
 	.mbr_done_fn = opal_mbr_done_pt,
 	.eraselr_fn	= opal_eraselr_pt,
 	.ds_add_anybody_get_fn = opal_ds_add_anybody_get,
@@ -284,6 +289,15 @@ int sed_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct sed_
 int sed_shadowmbr(struct sed_device *dev, const struct sed_key *key, bool mbr)
 {
 	return curr_if->shadow_mbr_fn(dev, key, mbr);
+}
+
+int sed_write_shadow_mbr(struct sed_device *dev, const struct sed_key *key,
+			const uint8_t *from, uint32_t size, uint32_t offset)
+{
+	if (curr_if->write_shadow_mbr_fn == NULL)
+		return -EOPNOTSUPP;
+
+	return curr_if->write_shadow_mbr_fn(dev, key, from, size, offset);
 }
 
 int sed_mbrdone(struct sed_device *dev, const struct sed_key *key, bool mbr)
