@@ -12,6 +12,7 @@
 #include <limits.h>
 #include <unistd.h>
 
+#include <sys/mman.h>
 #include <sys/stat.h>
 
 #include <libsed.h>
@@ -33,6 +34,7 @@ static int lock_unlock_handle_opts(char *opt, char **arg);
 static int setup_global_range_handle_opts(char *opt, char **arg);
 static int setpw_handle_opts(char *opt, char **arg);
 static int mbr_control_handle_opts(char *opt, char **arg);
+static int write_mbr_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -44,6 +46,7 @@ static int handle_lock_unlock(void);
 static int handle_setup_global_range(void);
 static int handle_setpw(void);
 static int handle_mbr_control(void);
+static int handle_write_mbr(void);
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -87,6 +90,13 @@ static cli_option mbr_control_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'e', "enable", "Set/Unset MBR Enable column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
 	{'m', "done", "Set/Unset MBR Done column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	{0}
+};
+
+static cli_option write_mbr_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'f', "file", "File path containing Pre-boot Application(PBA) image ", 1, "FMT", CLI_OPTION_REQUIRED},
+	{'o', "offset", "Enter the offset(by default 0)", 1, "NUM", CLI_OPTION_OPTIONAL_ARG},
 	{0}
 };
 
@@ -181,6 +191,17 @@ static cli_command sedcli_commands[] = {
 		.help = NULL
 	},
 	{
+		.name = "write-mbr",
+		.short_name = 'W',
+		.desc = "Write data into shadow MBR region",
+		.long_desc = "Write data into shadow MBR region",
+		.options = write_mbr_opts,
+		.command_handle_opts = write_mbr_handle_opts,
+		.handle = handle_write_mbr,
+		.flags = 0,
+		.help = NULL
+	},
+	{
 		.name = "version",
 		.short_name = 'V',
 		.desc = "Print sedcli version",
@@ -207,6 +228,7 @@ static cli_command sedcli_commands[] = {
 
 struct sedcli_options {
 	char dev_path[PATH_MAX];
+	char file_path[PATH_MAX];
 	struct sed_key pwd;
 	struct sed_key repeated_pwd;
 	struct sed_key old_pwd;
@@ -215,6 +237,7 @@ struct sedcli_options {
 	int print_fmt;
 	int enable;
 	int done;
+	int offset;
 };
 
 static struct sedcli_options *opts = NULL;
@@ -347,6 +370,31 @@ int mbr_control_handle_opts(char *opt, char **arg)
 		opts->done = get_mbr_flag(arg[0]);
 		if (opts->done < 0)
 			return opts->done;
+	}
+
+	return 0;
+}
+
+bool offset_flag = false;
+int write_mbr_handle_opts(char *opt, char **arg)
+{
+	char *error;
+
+	if (!offset_flag)
+		opts->offset = 0;
+
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "file")) {
+		strncpy(opts->file_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "offset")) {
+		opts->offset = strtol(arg[0], &error, 10);
+		if (error == arg[0]) {
+			sedcli_printf(LOG_ERR,
+				"Failed to parse user offset from string\n");
+			return -EINVAL;
+		}
+		offset_flag = true;
 	}
 
 	return 0;
@@ -782,6 +830,64 @@ static int handle_mbr_control(void)
 
 print_deinit:
 	print_sed_status(ret);
+init_deinit:
+	sed_deinit(dev);
+	return ret;
+}
+
+static int handle_write_mbr(void)
+{
+	struct sed_device *dev = NULL;
+	int ret, mbr_fd;
+	struct stat mbr_st;
+	void *mbr_mmap;
+
+	ret = sed_init(&dev, opts->dev_path);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
+				opts->dev_path);
+		return ret;
+	}
+
+	ret = check_current_levl0_discv();
+	if (ret != -EOPNOTSUPP && ret != 0)
+		goto init_deinit;
+
+	mbr_fd = open(opts->file_path, O_RDONLY | O_CLOEXEC);
+	if (fstat(mbr_fd, &mbr_st) == -1) {
+		sedcli_printf(LOG_ERR, "Error opening/fstating file: %s\n",
+				opts->file_path);
+		ret = -1;
+		goto close_fd;
+	}
+
+	mbr_mmap = mmap(NULL, mbr_st.st_size, PROT_READ, MAP_PRIVATE, mbr_fd,
+			0);
+	if (mbr_mmap == MAP_FAILED) {
+		sedcli_printf(LOG_ERR, "Error mmaping file: %s\n",
+				opts->file_path);
+		ret = -1;
+		goto close_fd;
+	}
+
+	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
+
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len,
+				SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		ret = -1;
+		goto unmap;
+	}
+
+	ret = sed_write_shadow_mbr(dev, &opts->pwd, (const uint8_t *)mbr_mmap,
+				mbr_st.st_size, opts->offset);
+
+	print_sed_status(ret);
+unmap:
+	munmap(mbr_mmap, mbr_st.st_size);
+close_fd:
+	close(mbr_fd);
 init_deinit:
 	sed_deinit(dev);
 	return ret;
