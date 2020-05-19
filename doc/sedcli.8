@@ -81,6 +81,15 @@ Changes the lock state for the device. Following access modes are available:
 .IP "\fB\-P -d <device>\fR or \fB\-\-set-password --device <device>\fR"
 Updates password for Admin1 authority in Locking SP.
 
+.IP "\fB\-M -d <device> [-e {TRUE|FALSE}] [-m {TRUE|FALSE}]\fR or \fB\-\-mbr-control --device <device> [--enable {TRUE|FALSE}] [--done {TRUE|FALSE}]\fR"
+.IP
+Enable/Disable MBR Shadow and/or Set/Unset MBR Done.
+MBR Done update to TRUE will only take effect when MBR Shadow is enabled.
+
+.IP "\fB\-W -d <device> -f <pba_file> [-o <offset>]\fR or \fB\-\-write-mbr --device <device> --file <pba_file> [--offset <offset>]\fR"
+Write data into MBR shadow region(MBR table).
+MBR shadow should be enabled for the PBA to take effect.
+
 .IP "\fB\-V\fR or \fB\-\-version\fR"
 Prints version of sedcli.
 
