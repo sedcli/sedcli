@@ -10,7 +10,6 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <time.h>
-#include <sys/timeb.h>
 #include <sys/stat.h>
 #include <sys/syslog.h>
 
@@ -566,14 +565,14 @@ int run_command(cli_command *commands, int cmd, int argc, char **argv)
 	int result;
 	const char *syslog_path = "/var/log/messages";
 	/* time buffer and stat buffer after running command */
-	struct timeb t0;
+	struct timespec t0;
 	FILE *messages_f;
 	/* time buffer and stat buffer after running command */
-	struct timeb t1;
+	struct timespec t1;
 	long long int timespan;
 
 	/* collect time */
-	ftime(&t0);
+	clock_gettime(CLOCK_REALTIME, &t0);
 	/* collect stat buffer for syslog */
 	messages_f = fopen(syslog_path, "r");
 	if (messages_f) {
@@ -592,8 +591,8 @@ int run_command(cli_command *commands, int cmd, int argc, char **argv)
 
 	/* execute command */
 	result = commands[cmd].handle();
-	ftime(&t1);
-	timespan = (1000 * (t1.time - t0.time) + t1.millitm - t0.millitm);
+	clock_gettime(CLOCK_REALTIME, &t1);
+	timespan = (1000 * (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1000000);
 
 	if (commands[cmd].short_name != 'V') {
 		log_command(argc, argv, result, timespan);
