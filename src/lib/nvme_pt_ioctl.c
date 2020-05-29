@@ -2086,6 +2086,10 @@ int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
 	if (ret)
 		goto end_sessn;
 
+	ret = opal_set_mbr_done(dev->fd, opal_dev, enable_disable);
+	if (ret)
+		goto end_sessn;
+
 	ret = opal_set_mbr_en_disable(dev->fd, opal_dev, enable_disable);
 
 end_sessn:
