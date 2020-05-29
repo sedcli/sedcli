@@ -159,7 +159,8 @@ int sed_init(struct sed_device **dev, const char *dev_path);
 /**
  *
  */
-int sed_level0_discovery(struct sed_opal_level0_discovery *discv);
+int sed_level0_discovery(struct sed_device *dev,
+			struct sed_opal_level0_discovery *discv);
 
 /**
  *

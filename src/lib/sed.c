@@ -17,7 +17,7 @@
 #define ARRAY_SIZE(x) ((size_t)(sizeof(x) / sizeof(x[0])))
 
 typedef int (*init)(struct sed_device *, const char *);
-typedef void (*lvl0_discv) (struct sed_opal_level0_discovery *discv);
+typedef int (*lvl0_discv) (struct sed_device *, struct sed_opal_level0_discovery *);
 typedef int (*take_ownership)(struct sed_device *, const struct sed_key *);
 typedef int (*get_msid_pin)(struct sed_device *, struct sed_key *);
 typedef int (*reverttper)(struct sed_device *, const struct sed_key *, bool);
@@ -162,10 +162,11 @@ int sed_init(struct sed_device **dev, const char *dev_path)
 	struct sed_device *ret;
 
 	ret = malloc(sizeof(*ret));
-
 	if (ret == NULL) {
 		return -ENOMEM;
 	}
+
+	memset(ret, 0, sizeof(*ret));
 
 	status = curr_if->init_fn(ret, dev_path);
 	if (status != 0) {
@@ -178,14 +179,13 @@ int sed_init(struct sed_device **dev, const char *dev_path)
 	return status;
 }
 
-int  sed_level0_discovery(struct sed_opal_level0_discovery *discv)
+int sed_level0_discovery(struct sed_device *dev,
+			struct sed_opal_level0_discovery *discv)
 {
 	if (curr_if->lvl0_discv_fn == NULL)
 		return -EOPNOTSUPP;
 
-	curr_if->lvl0_discv_fn(discv);
-
-	return 0;
+	return curr_if->lvl0_discv_fn(dev, discv);
 }
 
 void sed_deinit(struct sed_device *dev)
