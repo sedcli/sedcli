@@ -51,8 +51,6 @@ struct opal_device {
 	} session;
 };
 
-struct opal_level0_discovery *discv = NULL;
-
 static int sed2opal_map[] = {
 	[SED_ADMIN1] = OPAL_ADMIN1_UID,
 	[SED_USER1] = OPAL_USER1_UID,
@@ -200,42 +198,57 @@ static int get_opal_auth_uid(enum SED_AUTHORITY auth)
 	return sed2opal_map[auth];
 }
 
-static void check_tper_feat(void *feat)
+static void check_tper_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
 {
-	memcpy(&discv->tper, (struct tper_supported_feat *)feat, sizeof(struct tper_supported_feat));
+	memcpy(&discv->sed_tper, (struct tper_supported_feat *)feat,
+		sizeof(struct tper_supported_feat));
 }
 
-static void check_locking_feat(void *feat)
+static void check_locking_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
 {
-	memcpy(&discv->locking, (struct locking_supported_feat *)feat, sizeof(struct locking_supported_feat));
+	memcpy(&discv->sed_locking, (struct locking_supported_feat *)feat,
+		sizeof(struct locking_supported_feat));
 }
 
-static void check_geometry_feat(void *feat)
+static void check_geometry_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
 {
-	memcpy(&discv->geo, (struct geometry_supported_feat *)feat, sizeof(struct geometry_supported_feat));
+	memcpy(&discv->sed_geo, (struct geometry_supported_feat *)feat,
+		sizeof(struct geometry_supported_feat));
 }
 
-static void check_datastr_feat(void *feat)
+static void check_datastr_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
 {
-	memcpy(&discv->datastr, (struct datastr_table_supported_feat *)feat, sizeof(struct datastr_table_supported_feat));
+	memcpy(&discv->sed_datastr, (struct datastr_table_supported_feat *)feat,
+		sizeof(struct datastr_table_supported_feat));
 }
 
-static void check_opalv100_feat(void *feat)
+static void check_opalv100_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
 {
-	memcpy(&discv->opalv100, (struct opalv100_supported_feat *)feat, sizeof(struct opalv100_supported_feat));
+	memcpy(&discv->sed_opalv100, (struct opalv100_supported_feat *)feat,
+		sizeof(struct opalv100_supported_feat));
 }
 
-static void check_opalv200_feat(void *feat)
+static void check_opalv200_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
 {
-	memcpy(&discv->opalv200, (struct opalv200_supported_feat *)feat, sizeof(struct opalv200_supported_feat));
+	memcpy(&discv->sed_opalv200, (struct opalv200_supported_feat *)feat,
+		sizeof(struct opalv200_supported_feat));
 }
 
-static int opal_level0_disc_pt(int fd, struct opal_device *dev)
+static int opal_level0_disc_pt(struct sed_device *device)
 {
 	struct opal_l0_feat *curr_feat;
 	struct opal_level0_header *header;
 	struct opal_level0_feat_desc *desc;
 	struct opal_l0_disc *disc_data;
+	struct opal_device *dev = device->priv;
+	struct sed_opal_level0_discovery *discv = &device->discv;
+	int fd = device->fd;
 
 	int ret, pos, end, feat_no;
 	uint16_t feat_code;
@@ -276,28 +289,28 @@ static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 		case OPAL_FEAT_TPER:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			check_tper_feat(&desc->feat.tper.flags);
+			check_tper_feat(discv, &desc->feat.tper.flags);
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_LOCKING:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			check_locking_feat(&desc->feat.locking.flags);
+			check_locking_feat(discv, &desc->feat.locking.flags);
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_GEOMETRY:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			check_geometry_feat(&desc->feat.geo);
+			check_geometry_feat(discv, &desc->feat.geo);
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_DATASTORE:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			check_datastr_feat(&desc->feat.datastr.datastr_tbl);
+			check_datastr_feat(discv, &desc->feat.datastr.datastr_tbl);
 
 			feat_no++;
 			break;
@@ -310,14 +323,14 @@ static int opal_level0_disc_pt(int fd, struct opal_device *dev)
 		case OPAL_FEAT_OPALV100:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			check_opalv100_feat(&desc->feat.opalv100);
+			check_opalv100_feat(discv, &desc->feat.opalv100);
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_OPALV200:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			check_opalv200_feat(&desc->feat.opalv200);
+			check_opalv200_feat(discv, &desc->feat.opalv200);
 
 			curr_feat->feat.opalv200.base_comid =
 				be16toh(desc->feat.opalv200.base_comid);
@@ -347,11 +360,6 @@ void opal_deinit_pt(struct sed_device *dev)
 	if (dev->priv != NULL) {
 		free(dev->priv);
 		dev->priv = NULL;
-	}
-
-	if (discv != NULL) {
-		free(discv);
-		discv = NULL;
 	}
 
 	opal_parser_deinit();
@@ -392,19 +400,10 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 	opal_dev->session.tsn = 0;
 	opal_dev->session.hsn = 0;
 
-	discv = malloc(sizeof(*discv));
-	if (discv == NULL) {
-		SEDCLI_DEBUG_MSG("Unable to allocate memory for discovery "\
-				 "structure.\n");
-		ret = -ENOMEM;
+	ret = opal_level0_disc_pt(dev);
+	if (ret)
 		goto init_deinit;
-	}
 
-	ret = opal_level0_disc_pt(dev->fd, dev->priv);
-	if (ret) {
-		ret = -EINVAL;
-		goto init_deinit;
-	}
 	SEDCLI_DEBUG_PARAM("The device comid is: %u\n", opal_dev->comid);
 
 init_deinit:
@@ -414,9 +413,21 @@ init_deinit:
 	return ret;
 }
 
-void opal_level0_discv_info_pt(struct sed_opal_level0_discovery *discvry)
+int opal_level0_discv_info_pt(struct sed_device *dev,
+				struct sed_opal_level0_discovery *discv)
 {
-	memcpy(discvry, (struct sed_opal_level0_discovery *)discv, sizeof(*discvry));
+	int ret;
+
+	if (dev == NULL || discv == NULL)
+		return -EINVAL;
+
+	ret = opal_level0_disc_pt(dev);
+	if (ret)
+		return ret;
+
+	memcpy(discv, &dev->discv, sizeof(*discv));
+
+	return 0;
 }
 
 static void init_req(struct opal_device *dev)

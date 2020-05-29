@@ -516,7 +516,7 @@ static int handle_sed_discv(void)
 {
 	int ret = 0;
 	struct sed_device *dev = NULL;
-	struct sed_opal_level0_discovery *discv = NULL;
+	struct sed_opal_level0_discovery discv = { 0 };
 
 	ret = sed_init(&dev, opts->dev_path);
 	if (ret) {
@@ -524,27 +524,19 @@ static int handle_sed_discv(void)
 		return -EINVAL;
 	}
 
-	discv = malloc(sizeof(*discv));
-	if (discv == NULL) {
-		sedcli_printf(LOG_ERR, "Memory not allocated.\n");
-		ret = -ENOMEM;
-		goto init_deinit;
-	}
-
-	ret = sed_level0_discovery(discv);
+	ret = sed_level0_discovery(dev, &discv);
 	if (ret) {
-		if (ret == -EOPNOTSUPP)
-			sedcli_printf(LOG_ERR, "Command NOT supported for this interface.\n");
+		sedcli_printf(LOG_ERR, "Command NOT supported for this interface.\n");
 		goto deinit;
 	}
 
 	switch(opts->print_fmt) {
 	case SED_NORMAL:
-		sed_discv_print_normal(discv, opts->dev_path);
+		sed_discv_print_normal(&discv, opts->dev_path);
 		ret = 0;
 		break;
 	case SED_UDEV:
-		sed_discv_print_udev(discv);
+		sed_discv_print_udev(&discv);
 		ret = 0;
 		break;
 	default:
@@ -554,8 +546,6 @@ static int handle_sed_discv(void)
 	}
 
 deinit:
-	free(discv);
-init_deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -761,37 +751,36 @@ static int handle_setpw(void)
 	return ret;
 }
 
-static int check_current_levl0_discv(void)
+static int check_current_levl0_discv(struct sed_device *dev)
 {
-	struct sed_opal_level0_discovery *discv = NULL;
 	int ret;
+	struct sed_opal_level0_discovery discv = { 0 };
 
-	discv = malloc(sizeof(*discv));
-	if (discv == NULL) {
-		sedcli_printf(LOG_ERR, "Memory not allocated.\n");
-		return -ENOMEM;
-	}
-
-	ret = sed_level0_discovery(discv);
+	ret = sed_level0_discovery(dev, &discv);
 	if (ret) {
-		if (ret == -EOPNOTSUPP)
-			sedcli_printf(LOG_ERR, "Command NOT supported for this "
-					"interface.\n");
-		else
-			sedcli_printf(LOG_ERR, "Error in level0 discovery\n");
-		goto free_mem;
+		if (ret == -EOPNOTSUPP) {
+			sedcli_printf(LOG_WARNING, "Level0 discovery not supported "
+					"for this interface.\n");
+			/*
+			 * Continue the operations even if the interface doesn't
+			 * support level0 discovery, the kernel takes care of it
+			 */
+			return 0;
+		} else {
+			sedcli_printf(LOG_ERR, "Error doing level0 discovery\n");
+			return ret;
+		}
 	}
 
 	/*
 	 * Check the current status of any level0 feture (Add them here)
+	 * Return zero on successful checks and -1 on unsuccessful checks
 	 */
-	if (!discv->sed_locking.locking_en) {
+	if (!discv.sed_locking.locking_en) {
 		sedcli_printf(LOG_INFO, "LSP NOT ACTIVATED\n");
 		ret = -1;
 	}
 
-free_mem:
-	free(discv);
 	return ret;
 }
 
@@ -814,8 +803,8 @@ static int handle_mbr_control(void)
 		return ret;
 	}
 
-	ret = check_current_levl0_discv();
-	if (ret != -EOPNOTSUPP && ret != 0)
+	ret = check_current_levl0_discv(dev);
+	if (ret)
 		goto init_deinit;
 
 	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
@@ -856,8 +845,8 @@ static int handle_write_mbr(void)
 		return ret;
 	}
 
-	ret = check_current_levl0_discv();
-	if (ret != -EOPNOTSUPP && ret != 0)
+	ret = check_current_levl0_discv(dev);
+	if (ret)
 		goto init_deinit;
 
 	mbr_fd = open(opts->file_path, O_RDONLY | O_CLOEXEC);

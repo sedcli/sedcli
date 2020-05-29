@@ -18,6 +18,7 @@ enum SED_ACCESSTYPE {
 
 struct sed_device {
 	int fd;
+	struct sed_opal_level0_discovery discv;
 	void *priv;
 };
 
