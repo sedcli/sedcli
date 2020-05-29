@@ -2066,10 +2066,10 @@ end_sessn:
 }
 
 int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
-			bool mbr)
+			bool enable)
 {
 	int ret = 0;
-	uint8_t enable_disable;
+	uint8_t opal_enable;
 	struct opal_device *opal_dev;
 
 	if (key == NULL) {
@@ -2080,13 +2080,13 @@ int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
 
 	opal_dev = dev->priv;
 
-	enable_disable = mbr ? OPAL_TRUE : OPAL_FALSE;
+	opal_enable = enable ? OPAL_TRUE : OPAL_FALSE;
 
 	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret)
 		goto end_sessn;
 
-	ret = opal_set_mbr_en_disable(dev->fd, opal_dev, enable_disable);
+	ret = opal_set_mbr_en_disable(dev->fd, opal_dev, opal_enable);
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);
