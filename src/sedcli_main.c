@@ -800,6 +800,13 @@ static int handle_mbr_control(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
+	if (!opts->enable && opts->done) {
+		sedcli_printf(LOG_ERR, "Error: disabling MBR shadow and setting "
+				"MBR done doesn't take any effect\n");
+
+		return -EINVAL;
+	}
+
 	ret = sed_init(&dev, opts->dev_path);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
