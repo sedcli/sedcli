@@ -137,6 +137,7 @@ install-$(TARGET)-kmip: install-$(TARGET)
 	install -m 644 ../etc/udev/rules.d/63-sedcli.rules /etc/udev/rules.d/
 	install -m 755 -d /etc/sedcli /etc/sedcli/certs
 	install -m 644 ../etc/sedcli/sedcli.conf /etc/sedcli/
+	install -m 644 ../doc/$(TARGET)-kmip.8 /usr/share/man/man8/$(TARGET)-kmip.8
 	touch /etc/sedcli/sedcli_kmip && chmod 644 /etc/sedcli/sedcli_kmip
 
 install-cert:
@@ -151,6 +152,7 @@ uninstall:
 	-rm /usr/sbin/$(TARGET)
 	-rm $(LIB_DIR)/$(LIB).so*
 	-rm /usr/share/man/man8/$(TARGET).8
+	-rm /usr/share/man/man8/$(TARGET)-kmip.8
 	-rm /usr/sbin/$(TARGET)-kmip
 	-rm /etc/udev/rules.d/63-sedcli.rules
 	-rm /etc/sedcli/sedcli.conf

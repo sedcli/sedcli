@@ -1,0 +1,97 @@
+.TH sedcli-kmip 8
+.SH NAME
+sedcli-kmip \- autoprovision and autounlock TCG Opal SEDs using Key Management
+Server (KMS)
+
+.SH SYNOPSIS
+
+\fBsedcli-kmip\fR <command> [options...]
+
+.SH DESCRIPTION
+Sedcli-kmip is part of sedcli package and allows system Administrator/Operator
+to automatically provision and automatically unlock NVMe SEDs that are TCG Opal
+compliant.
+
+.PP
+Automatic management requires sedcli-kmip to be configured with OASIS KMIP (Key
+Management Interoperability Protocol) compatible Key Management Server. There
+are commercial and open source implementations of KMIP server available.
+Sedcli-kmip has been developed and tested using PyKMIP implementation.
+
+.PP
+Sedcli-kmip when run for the first time on a given platform, communicates with
+KMS and generates Platform Encryption Key (PEK) on it. PEK is a single per
+platform AES-256 bits long key that is used to wrap/unwrap individual disk keys
+called Disk Encryption Key (DEK). Encrypted version of DEK is stored in sedcli
+metadata region in Opal datastore on disk itself.
+
+.PP
+NVMe SED provisioning may be triggered manually in command line or automatically
+on hot-insert event or OS boot. This requires proper udev rules to be installed.
+When NVMe SED is provisioned for security DEK key is used for SID and Admin1
+authorities.
+
+.PP
+Sedcli-kmip performs secure communication with KMS using SSL. KMS uses
+certificate based authentication and authorization. Path to sedcli-kmip client
+certificate and CA certificate should be stored in /etc/sedcli/sedcli.conf
+file.
+
+.PP
+It is possible to perform periodic key rotation using key backup functionality.
+User needs to store old DEK key in a backup file and then reprovision SSD using
+backup file to authenticate to the drive and perform necessary updates.
+
+.SH OPTIONS
+
+.IP "\fB\-P -d <device> [-f <file>]\fR or \fB\-\-provision --device <device> [--file <file>]\fR"
+Initial provision NVMe SSD for security or rekey disk. On initial provision
+new DEK key is created and used to take ownership of SSD and activate Opal.
+For reprovisioning (replacing DEK with new key) "--file" options needs to be
+specified. "file" should be a valid sedcli-kmip backup file containing password
+protected DEK key that will be used to authenticate to NVMe SSD during
+reprovisioning process.
+
+.IP "\fB\-B -d <device> -f <file>\fR or \fB\-\-backup --device <device> --file <file>\fR"
+Write encrypted DEK key into password protected file. Backup file may be used
+during rekey process of NVMe SSD or when disk is migrated between platforms.
+It is also possible to use backup file to manually manage locking state of
+NVMe SSD.
+
+.IP "\fB\-L -d <device> -t {RO|RW|LK} [-f <file>]\fR or \fB\-\-lock-unlock --device <device> --accesstype {RO|RW|LK} [--file <file>]\fR"
+Change lock state of NVMe SSD. By default this command uses PEK to unwrap DEK
+key stored on disk itself in Opal datastore region. Following lock states are
+available:
+.IP
+1. Read-Only(RO) - user can only read the data from the disk.
+.IP
+2. Read-Write(RW) - user can read/write data from/to the disk.
+.IP
+3. Locked(LK) - data is locked, user can NOT read/write data from/to the disk.
+
+.IP "\fB\-H\fR or \fB\-\-help\fR"
+Prints global and command specific help on available commands and usage
+
+.IP "To print command specific help use following syntax:"
+.IP "\fBsedcli-kmip <command> -H\fR or \fBsedcli-kmip <command> --help\fR"
+.IP "For example:"
+.IP "\fBsedcli-kmip -P -H\fR or \fBsedcli-kmip --provision --help\fR"
+
+.SH COPYRIGHT
+Copyright(c) 2018-2020 by the Intel Corporation.
+
+.SH AUTHOR
+This manual page was created by Andrzej Jakowski <andrzej.jakowski@intel.com>
+
+
+.SH FILES
+.PP
+sedcli-kmip
+.PP
+/etc/sedcli/sedcli.conf
+.PP
+/etc/udev/rules.d/63-sedcli.rules
+
+.SH SEE ALSO
+.TP
+sedcli(8)
