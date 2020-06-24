@@ -355,8 +355,8 @@ struct opal_level0_discovery {
 int opal_init_pt(struct sed_device *dev,
 		const char *device_path);
 
-int opal_level0_discv_info_pt(struct sed_device *dev,
-				struct sed_opal_level0_discovery *discv);
+int opal_dev_discv_info_pt(struct sed_device *dev,
+			   struct sed_opal_device_discv *discv);
 
 int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key);
 
