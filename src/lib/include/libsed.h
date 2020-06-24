@@ -15,6 +15,9 @@
 
 #define SED_OPAL_MAX_LRS 9
 
+#define MAX_PROP_NAME_LEN 32
+#define NUM_TPER_PROPS    23
+
 enum SED_ACCESS_TYPE {
 	SED_RO_ACCESS = 1 << 0,
 	SED_RW_ACCESS = 1 << 1,
@@ -96,6 +99,13 @@ struct sed_opalv200_supported_feat {
 	uint8_t reserved2[5];
 } __attribute__((__packed__));
 
+struct sed_tper_properties {
+	struct {
+		char key_name[MAX_PROP_NAME_LEN];
+		uint64_t value;
+	} property[NUM_TPER_PROPS];
+} __attribute__((__packed__));
+
 struct sed_opal_level0_discovery {
 	struct sed_tper_supported_feat sed_tper;
 	struct sed_locking_supported_feat sed_locking;
@@ -103,6 +113,11 @@ struct sed_opal_level0_discovery {
 	struct sed_datastr_table_supported_feat sed_datastr;
 	struct sed_opalv100_supported_feat sed_opalv100;
 	struct sed_opalv200_supported_feat sed_opalv200;
+};
+
+struct sed_opal_device_discv {
+	struct sed_opal_level0_discovery sed_lvl0_discv;
+	struct sed_tper_properties sed_tper_props;
 };
 
 struct sed_key {
@@ -159,8 +174,8 @@ int sed_init(struct sed_device **dev, const char *dev_path);
 /**
  *
  */
-int sed_level0_discovery(struct sed_device *dev,
-			struct sed_opal_level0_discovery *discv);
+int sed_dev_discovery(struct sed_device *dev,
+		      struct sed_opal_device_discv *discv);
 
 /**
  *

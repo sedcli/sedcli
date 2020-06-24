@@ -15,6 +15,7 @@
 #include <endian.h>
 #include <unistd.h>
 #include <stdbool.h>
+#include <assert.h>
 
 #include "nvme_pt_ioctl.h"
 #include "nvme_access.h"
@@ -189,6 +190,8 @@ struct opal_req_item {
 	} val;
 };
 
+static int opal_tper_host_prep(struct sed_device *dev);
+
 static int get_opal_auth_uid(enum SED_AUTHORITY auth)
 {
 	if (auth > ARRAY_SIZE(sed2opal_map)) {
@@ -247,7 +250,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 	struct opal_level0_feat_desc *desc;
 	struct opal_l0_disc *disc_data;
 	struct opal_device *dev = device->priv;
-	struct sed_opal_level0_discovery *discv = &device->discv;
+	struct sed_opal_level0_discovery *discv = &device->discv.sed_lvl0_discv;
 	int fd = device->fd;
 
 	int ret, pos, end, feat_no;
@@ -413,8 +416,8 @@ init_deinit:
 	return ret;
 }
 
-int opal_level0_discv_info_pt(struct sed_device *dev,
-				struct sed_opal_level0_discovery *discv)
+int opal_dev_discv_info_pt(struct sed_device *dev,
+			   struct sed_opal_device_discv *discv)
 {
 	int ret;
 
@@ -422,6 +425,10 @@ int opal_level0_discv_info_pt(struct sed_device *dev,
 		return -EINVAL;
 
 	ret = opal_level0_disc_pt(dev);
+	if (ret)
+		return ret;
+
+	ret = opal_tper_host_prep(dev);
 	if (ret)
 		return ret;
 
@@ -570,6 +577,9 @@ static void prepare_req_buf(struct opal_device *dev, struct opal_req_item *data,
 
 	prepare_cmd_init(dev, buf, buf_len, &pos, uid, method);
 
+	if (data == NULL || data_len == 0)
+		goto prep_end;
+
 	for (i = 0; i < data_len; i++) {
 		switch (data[i].type) {
 		case OPAL_U8:
@@ -587,6 +597,7 @@ static void prepare_req_buf(struct opal_device *dev, struct opal_req_item *data,
 		}
 	}
 
+prep_end:
 	prepare_cmd_end(buf, buf_len, &pos);
 
 	prepare_cmd_header(dev, buf, pos);
@@ -725,6 +736,50 @@ static int validate_sessn(struct opal_device *dev)
 	}
 
 	return 0;
+}
+
+static void parse_tper_host_prop(struct sed_device *device)
+{
+	struct opal_device *dev = device->priv;
+	int payload_len = dev->payload.len;
+	struct sed_tper_properties *tper = &device->discv.sed_tper_props;
+
+	/* TPer properties are returned as key-value pairs */
+	for (int i = 0, j = 0; i < payload_len; i++) {
+		if (resp_token_match(dev->payload.tokens[i], OPAL_STARTNAME)) {
+			int jmp = get_payload_string(dev, i + 1);
+			int key_len = dev->payload.tokens[i + 1]->len - jmp;
+
+			assert(j < NUM_TPER_PROPS);
+			memcpy(tper->property[j].key_name,
+				dev->payload.tokens[i + 1]->pos + jmp,
+				key_len);
+			tper->property[j].value =
+					dev->payload.tokens[i + 2]->vals.uint;
+			j++;
+		}
+	}
+}
+
+static int opal_tper_host_prep(struct sed_device *device)
+{
+	int ret, fd = device->fd;
+	struct opal_device *dev = device->priv;
+
+	prepare_req_buf(dev, NULL, 0, opal_uid[OPAL_SM_UID],
+			opal_method[OPAL_PROPERTIES_METHOD_UID]);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+	if (ret != DTAERROR_NO_METHOD_STATUS)
+		goto put_tokens;
+
+	parse_tper_host_prop(device);
+	ret = 0;
+
+put_tokens:
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
 }
 
 static struct opal_req_item start_sess_cmd[] = {
@@ -2311,3 +2366,4 @@ end_sessn:
 	opal_end_session(dev->fd, opal_dev);
 	return ret;
 }
+
