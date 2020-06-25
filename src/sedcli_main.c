@@ -104,8 +104,8 @@ static cli_command sedcli_commands[] = {
 	{
 		.name = "discovery",
 		.short_name = 'D',
-		.desc = "Performs SED level0 discovery(works only with NVMe passthru mechanism)",
-		.long_desc = "Performs SED level0 discovery and provides basic info about the device(works only with NVMe passthru mechanism)",
+		.desc = "Performs SED Opal Device discovery(works only with NVMe passthru mechanism)",
+		.long_desc = "Performs SED Opal Device discovery. Provides Level 0 and Level 1 Discovery info. of the device(works only with NVMe passthru mechanism)",
 		.options = sed_discv_opts,
 		.command_handle_opts = sed_discv_handle_opts,
 		.handle = handle_sed_discv,
@@ -424,64 +424,76 @@ static void print_sed_status(int status)
 	}
 }
 
-static void sed_discv_print_normal(struct sed_opal_level0_discovery *discv, const char *dev_path)
+static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const char *dev_path)
 {
-	uint16_t base_comid = be16toh(discv->sed_opalv200.base_comid);
+	uint16_t base_comid = be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid);
 
 	if (!base_comid) {
 		sedcli_printf(LOG_INFO, "Invalid disk, %s is NOT SED-OPAL Compliant\n", dev_path);
 		return;
-	} else {
-		/* Printing the TPer Features */
-		sedcli_printf(LOG_INFO, "\nSED TPER FEATURES SUPPORTED\n");
-		sedcli_printf(LOG_INFO, "\tSync Supported        : %s\n", discv->sed_tper.sync_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tAsync Supported       : %s\n", discv->sed_tper.async_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tACK/NAK Supported     : %s\n", discv->sed_tper.ack_nak_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tBuffer Mgmt Supported : %s\n", discv->sed_tper.buff_mgmt_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tStreaming Supported   : %s\n", discv->sed_tper.stream_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tComID Mgmt Supported  : %s\n", discv->sed_tper.comid_mgmt_supp ? "Y" : "N");
-
-		/* Printing the Locking Feature */
-		sedcli_printf(LOG_INFO, "\nSED LOCKING FEATURES SUPPORTED\n");
-		sedcli_printf(LOG_INFO, "\tLocking Supported : %s\n", discv->sed_locking.locking_supp ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tLocking Enabled   : %s\n", discv->sed_locking.locking_en ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tLocked            : %s\n", discv->sed_locking.locked ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tMedia Encryption  : %s\n", discv->sed_locking.media_enc ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tMBR Enabled       : %s\n", discv->sed_locking.mbr_en ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tMBR Done          : %s\n", discv->sed_locking.mbr_done ? "Y" : "N");
-
-		/* Printing Geometry Supported Features*/
-		sedcli_printf(LOG_INFO, "\nSED GEOMETRY FEATURES SUPPORTED\n");
-		sedcli_printf(LOG_INFO, "\tAlignment required    : %s\n", discv->sed_geo.rsvd_align.align ? "Y" : "N");
-		sedcli_printf(LOG_INFO, "\tLogical Block Size    : %d\n", be32toh(discv->sed_geo.logical_blk_sz));
-		sedcli_printf(LOG_INFO, "\tAlignment Granularity : %ld\n", be64toh(discv->sed_geo.alignmnt_granlrty));
-		sedcli_printf(LOG_INFO, "\tLowest Aligned LBA    : %ld\n",  be64toh(discv->sed_geo.lowest_aligned_lba));
-
-		/* Printing Datastore Fetaures */
-		sedcli_printf(LOG_INFO, "\nSED DATASTORE FEATURES SUPPORTED\n");
-		sedcli_printf(LOG_INFO, "\tMax DataStore tables       : %d\n", be16toh(discv->sed_datastr.max_num_datastr_tbls));
-		sedcli_printf(LOG_INFO, "\tMax size DataStore tables  : %d\n", be32toh(discv->sed_datastr.max_total_size_datstr_tbls));
-		sedcli_printf(LOG_INFO, "\tDataStore table size align : %d\n", be32toh(discv->sed_datastr.datastr_tbl_size_align));
-
-		/* Printing Opalv100 Features */
-		if (!be16toh(discv->sed_opalv100.v1_base_comid))
-			sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES NOT SUPPORTED\n");
-		else {
-			sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES SUPPORTED\n");
-			sedcli_printf(LOG_INFO, "\tBase ComID       : %d\n", be16toh(discv->sed_opalv100.v1_base_comid));
-			sedcli_printf(LOG_INFO, "\tNumber of ComIDs : %d\n", be16toh(discv->sed_opalv100.v1_comid_num));
-		}
-
-		/* Printing Opalv200 Features */
-		sedcli_printf(LOG_INFO, "\nSED Opal v2.00 FEATURES SUPPORTED\n");
-		sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(discv->sed_opalv200.base_comid));
-		sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(discv->sed_opalv200.comid_num));
-		sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", discv->sed_opalv200.rangecross_rsvd.range_crossing ? 0 : 1);
-		sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(discv->sed_opalv200.admin_lp_auth_num));
-		sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(discv->sed_opalv200.user_lp_auth_num));
-		sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", discv->sed_opalv200.init_pin);
-		sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n\n", discv->sed_opalv200.revert_pin);
 	}
+
+	/* Printing the TPer Features */
+	sedcli_printf(LOG_INFO, "\nSED TPER FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "\tSync Supported        : %s\n", discv->sed_lvl0_discv.sed_tper.sync_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tAsync Supported       : %s\n", discv->sed_lvl0_discv.sed_tper.async_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tACK/NAK Supported     : %s\n", discv->sed_lvl0_discv.sed_tper.ack_nak_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tBuffer Mgmt Supported : %s\n", discv->sed_lvl0_discv.sed_tper.buff_mgmt_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tStreaming Supported   : %s\n", discv->sed_lvl0_discv.sed_tper.stream_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tComID Mgmt Supported  : %s\n", discv->sed_lvl0_discv.sed_tper.comid_mgmt_supp ? "Y" : "N");
+
+	/* Printing the Locking Feature */
+	sedcli_printf(LOG_INFO, "\nSED LOCKING FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "\tLocking Supported : %s\n", discv->sed_lvl0_discv.sed_locking.locking_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLocking Enabled   : %s\n", discv->sed_lvl0_discv.sed_locking.locking_en ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLocked            : %s\n", discv->sed_lvl0_discv.sed_locking.locked ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tMedia Encryption  : %s\n", discv->sed_lvl0_discv.sed_locking.media_enc ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tMBR Enabled       : %s\n", discv->sed_lvl0_discv.sed_locking.mbr_en ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tMBR Done          : %s\n", discv->sed_lvl0_discv.sed_locking.mbr_done ? "Y" : "N");
+
+	/* Printing Geometry Supported Features*/
+	sedcli_printf(LOG_INFO, "\nSED GEOMETRY FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "\tAlignment required    : %s\n", discv->sed_lvl0_discv.sed_geo.rsvd_align.align ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLogical Block Size    : %d\n", be32toh(discv->sed_lvl0_discv.sed_geo.logical_blk_sz));
+	sedcli_printf(LOG_INFO, "\tAlignment Granularity : %ld\n", be64toh(discv->sed_lvl0_discv.sed_geo.alignmnt_granlrty));
+	sedcli_printf(LOG_INFO, "\tLowest Aligned LBA    : %ld\n",  be64toh(discv->sed_lvl0_discv.sed_geo.lowest_aligned_lba));
+
+	/* Printing Datastore Fetaures */
+	sedcli_printf(LOG_INFO, "\nSED DATASTORE FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "\tMax DataStore tables       : %d\n", be16toh(discv->sed_lvl0_discv.sed_datastr.max_num_datastr_tbls));
+	sedcli_printf(LOG_INFO, "\tMax size DataStore tables  : %d\n", be32toh(discv->sed_lvl0_discv.sed_datastr.max_total_size_datstr_tbls));
+	sedcli_printf(LOG_INFO, "\tDataStore table size align : %d\n", be32toh(discv->sed_lvl0_discv.sed_datastr.datastr_tbl_size_align));
+
+	/* Printing Opalv100 Features */
+	if (!be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid))
+		sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES NOT SUPPORTED\n");
+	else {
+		sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tBase ComID       : %d\n", be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid));
+		sedcli_printf(LOG_INFO, "\tNumber of ComIDs : %d\n", be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_comid_num));
+	}
+
+	/* Printing Opalv200 Features */
+	sedcli_printf(LOG_INFO, "\nSED Opal v2.00 FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid));
+	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(discv->sed_lvl0_discv.sed_opalv200.comid_num));
+	sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", discv->sed_lvl0_discv.sed_opalv200.rangecross_rsvd.range_crossing ? 0 : 1);
+	sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(discv->sed_lvl0_discv.sed_opalv200.admin_lp_auth_num));
+	sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(discv->sed_lvl0_discv.sed_opalv200.user_lp_auth_num));
+	sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", discv->sed_lvl0_discv.sed_opalv200.init_pin);
+	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", discv->sed_lvl0_discv.sed_opalv200.revert_pin);
+
+	/* Printing TPer Properties */
+	sedcli_printf(LOG_INFO, "\nTPER PROPERTIES\n");
+	for (int i = 0; i < NUM_TPER_PROPS; i++) {
+		if (strcmp(discv->sed_tper_props.property[i].key_name, "") == 0)
+			break;
+		sedcli_printf(LOG_INFO, "\t%-25s : %ld\n",
+			      discv->sed_tper_props.property[i].key_name,
+			      discv->sed_tper_props.property[i].value);
+	}
+
+	sedcli_printf(LOG_INFO, "\n");
 }
 
 #define SED_ENABLE "ENABLED"
@@ -490,13 +502,13 @@ static void sed_discv_print_normal(struct sed_opal_level0_discovery *discv, cons
 char *DEV_SED_COMPATIBLE;
 char *DEV_SED_LOCKED;
 
-static void sed_discv_print_udev(struct sed_opal_level0_discovery *discv)
+static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
 {
 	bool locking_enabled;
 	uint16_t comid;
 
-	locking_enabled = discv->sed_locking.locking_en ? true : false;
-	comid = discv->sed_opalv200.base_comid;
+	locking_enabled = discv->sed_lvl0_discv.sed_locking.locking_en ? true : false;
+	comid = discv->sed_lvl0_discv.sed_opalv200.base_comid;
 
 	if (!comid)
 		DEV_SED_COMPATIBLE = SED_DISABLE;
@@ -516,7 +528,7 @@ static int handle_sed_discv(void)
 {
 	int ret = 0;
 	struct sed_device *dev = NULL;
-	struct sed_opal_level0_discovery discv = { 0 };
+	struct sed_opal_device_discv discv = { 0 };
 
 	ret = sed_init(&dev, opts->dev_path);
 	if (ret) {
@@ -524,7 +536,7 @@ static int handle_sed_discv(void)
 		return -EINVAL;
 	}
 
-	ret = sed_level0_discovery(dev, &discv);
+	ret = sed_dev_discovery(dev, &discv);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Command NOT supported for this interface.\n");
 		goto deinit;
@@ -754,9 +766,9 @@ static int handle_setpw(void)
 static int check_current_levl0_discv(struct sed_device *dev)
 {
 	int ret;
-	struct sed_opal_level0_discovery discv = { 0 };
+	struct sed_opal_device_discv discv = { 0 };
 
-	ret = sed_level0_discovery(dev, &discv);
+	ret = sed_dev_discovery(dev, &discv);
 	if (ret) {
 		if (ret == -EOPNOTSUPP) {
 			sedcli_printf(LOG_WARNING, "Level0 discovery not supported "
@@ -776,7 +788,7 @@ static int check_current_levl0_discv(struct sed_device *dev)
 	 * Check the current status of any level0 feture (Add them here)
 	 * Return zero on successful checks and -1 on unsuccessful checks
 	 */
-	if (!discv.sed_locking.locking_en) {
+	if (!discv.sed_lvl0_discv.sed_locking.locking_en) {
 		sedcli_printf(LOG_INFO, "LSP NOT ACTIVATED\n");
 		ret = -1;
 	}
