@@ -28,11 +28,10 @@ LIB = libsed
 
 LIBOBJS = sed.o
 LIBOBJS += sed_util.o
-ifndef CONFIG_OPAL_DRIVER
 LIBOBJS += nvme_access.o
 LIBOBJS += nvme_pt_ioctl.o
 LIBOBJS += opal_parser.o
-else
+ifdef CONFIG_OPAL_DRIVER
 LIBOBJS += sed_ioctl.o
 endif
 
