@@ -14,24 +14,14 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
-#include <limits.h>
 
 #include "sed_util.h"
 #include "sedcli_log.h"
-
-#define NVME_DEV_PREFIX "nvme"
 
 int open_dev(const char *dev)
 {
 	int err, fd;
 	struct stat _stat;
-	char *base;
-
-	base = basename(dev);
-	if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
-		SEDCLI_DEBUG_PARAM("%s is not an NVMe device!\n", dev);
-		return -EINVAL;
-	}
 
 	err = open(dev, O_RDONLY);
 	if (err < 0)

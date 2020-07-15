@@ -7,6 +7,7 @@
 #include <libsed.h>
 #include <errno.h>
 #include <string.h>
+#include <limits.h>
 #include <linux/version.h>
 
 #include "nvme_pt_ioctl.h"
@@ -15,6 +16,7 @@
 #include "sedcli_log.h"
 
 #define ARRAY_SIZE(x) ((size_t)(sizeof(x) / sizeof(x[0])))
+#define NVME_DEV_PREFIX "nvme"
 
 typedef int (*init)(struct sed_device *, const char *);
 typedef int (*dev_discv) (struct sed_device *, struct sed_opal_device_discv *);
@@ -72,7 +74,6 @@ struct opal_interface {
 	deinit deinit_fn;
 };
 
-
 #ifdef CONFIG_OPAL_DRIVER
 static struct opal_interface opal_if = {
 	.init_fn = sedopal_init,
@@ -98,9 +99,9 @@ static struct opal_interface opal_if = {
 	.list_lr_fn = NULL,
 	.deinit_fn = sedopal_deinit
 };
+#endif
 
-#else
-static struct opal_interface opal_if = {
+static struct opal_interface nvmept_if = {
 	.init_fn	= opal_init_pt,
 	.dev_discv_fn	= opal_dev_discv_info_pt,
 	.ownership_fn	= opal_takeownership_pt,
@@ -124,9 +125,8 @@ static struct opal_interface opal_if = {
 	.list_lr_fn	= opal_list_lr_pt,
 	.deinit_fn	= opal_deinit_pt
 };
-#endif
 
-static struct opal_interface *curr_if = &opal_if;
+static struct opal_interface *curr_if = &nvmept_if;
 
 struct sed_status_ret {
 	int code;
@@ -160,6 +160,7 @@ int sed_init(struct sed_device **dev, const char *dev_path)
 {
 	int status = 0;
 	struct sed_device *ret;
+	char *base;
 
 	ret = malloc(sizeof(*ret));
 	if (ret == NULL) {
@@ -167,6 +168,16 @@ int sed_init(struct sed_device **dev, const char *dev_path)
 	}
 
 	memset(ret, 0, sizeof(*ret));
+
+	base = basename(dev_path);
+	if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
+#ifdef CONFIG_OPAL_DRIVER
+		curr_if = &opal_if;
+#else
+		SEDCLI_DEBUG_PARAM("%s is not an NVMe device and opal-driver not built-in!\n", dev_path);
+		return -EINVAL;
+#endif
+	}
 
 	status = curr_if->init_fn(ret, dev_path);
 	if (status != 0) {

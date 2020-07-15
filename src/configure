@@ -71,7 +71,6 @@ function print_help() {
 	echo "Options:"
 	echo "    --enable-kmip           Doesn't take any effect yet"
 	echo "    --enable-logging        Turns on sedcli debug logging to stdout"
-	echo "    --force-opal-driver     Force compilation of Linux opal driver interface, instead of using NVMe PT"
 }
 
 function print_summary() {
@@ -83,13 +82,10 @@ function print_summary() {
 # Default settings
 kmip_enabled="no"
 sedcli_logging="no"
-force_opal_driver="no"
 
 # Process user specified options
 for option do
 	case "$option" in
-	--force-opal-driver) force_opal_driver="yes"
-	;;
 	--enable-kmip) kmip_enabled="yes"
 	;;
 	--enable-logging) sedcli_logging="yes"
@@ -161,8 +157,8 @@ int main(void)
 }
 EOF
 
-if [ "${force_opal_driver}" == "yes" ] && test_compile "sed interface"; then
-	print_status "SED interface" "opal-driver"
+if test_compile "sed interface"; then
+	print_status "SED interface(s)" "NVMe-PT, opal-driver"
 	app_config_mk "CONFIG_OPAL_DRIVER=y"
 	app_config_h "#define CONFIG_OPAL_DRIVER"
 cat > $TMP_SRC <<EOF
@@ -178,7 +174,7 @@ EOF
 		app_config_h "#define CONFIG_OPAL_DRIVER_PSID_REVERT"
 	fi
 else
-	print_status "SED interface" "NVMe-PT (force-opal-driver=${force_opal_driver})"
+	print_status "SED interface(s)" "NVMe-PT (opal-driver not available)"
 fi
 # ==========================================
 
