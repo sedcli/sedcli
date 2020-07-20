@@ -36,13 +36,18 @@
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define MIN(x,y)  (((x - y) >> 63) & 1) ? x : y
 
-#define IO_BUFFER_LEN 2048
+#define MIN_IO_BUFFER_LEN 2048
+
+/* #define TPer property name strings here */
+#define MCPS "MaxComPacketSize"
 
 struct opal_device {
 	uint16_t comid;
 
-	uint8_t req_buf[IO_BUFFER_LEN];
-	uint8_t resp_buf[IO_BUFFER_LEN];
+	uint8_t *req_buf;
+	uint8_t *resp_buf;
+	uint64_t req_buf_size;
+	uint64_t resp_buf_size;
 
 	struct opal_parsed_payload payload;
 
@@ -190,6 +195,7 @@ struct opal_req_item {
 	} val;
 };
 
+static int opal_dev_discv(struct sed_device *dev);
 static int opal_tper_host_prep(struct sed_device *dev);
 
 static int get_opal_auth_uid(enum SED_AUTHORITY auth)
@@ -258,7 +264,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 	uint8_t *buffer;
 
 	ret = opal_recv(fd, OPAL_DISCOVERY_COMID, dev->resp_buf,
-			sizeof(dev->resp_buf));
+			dev->resp_buf_size);
 	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in Level 0 Discovery. Returning early\n");
 		return ret;
@@ -361,6 +367,13 @@ void opal_deinit_pt(struct sed_device *dev)
 	}
 
 	if (dev->priv != NULL) {
+		struct opal_device *opal_dev = dev->priv;
+
+		if (opal_dev->req_buf != NULL) {
+			free(opal_dev->req_buf);
+			opal_dev->req_buf = NULL;
+		}
+
 		free(dev->priv);
 		dev->priv = NULL;
 	}
@@ -368,9 +381,52 @@ void opal_deinit_pt(struct sed_device *dev)
 	opal_parser_deinit();
 }
 
+static uint64_t tper_prop_to_val(struct sed_device *dev, const char *tper_prop_name)
+{
+	struct sed_tper_properties *tper = &dev->discv.sed_tper_props;
+
+	for (int j = 0; j < NUM_TPER_PROPS; j++) {
+		if (strncmp(tper_prop_name, tper->property[j].key_name,
+				strlen(tper_prop_name)) == 0)
+			return tper->property[j].value;
+	}
+
+	SEDCLI_DEBUG_MSG("Invalid TPer property name!\n");
+
+	return -EINVAL;
+}
+
+static int resize_io_buf(struct opal_device *dev, uint64_t size)
+{
+	uint8_t *ptr;
+
+	if (dev == NULL)
+		return -EINVAL;
+
+	if (dev->req_buf != NULL)
+		free(dev->req_buf);
+
+	/*
+	 * Allocate memory for request and response buffers in a
+	 * single malloc request and split it later.
+	 */
+	ptr = malloc(sizeof(*dev->req_buf) * 2 * size);
+	if (!ptr)
+		return -ENOMEM;
+	memset(ptr, 0, sizeof(*ptr) * 2 * size);
+
+	dev->req_buf = &ptr[0];
+	dev->resp_buf = &ptr[size];
+	dev->req_buf_size = sizeof(*dev->req_buf) * size;
+	dev->resp_buf_size = sizeof(*dev->resp_buf) * size;
+
+	return 0;
+}
+
 int opal_init_pt(struct sed_device *dev, const char *device_path)
 {
 	int ret = 0;
+	uint64_t max_com_pkt_sz;
 	struct opal_device *opal_dev = NULL;
 
 	dev->fd = 0;
@@ -400,20 +456,49 @@ int opal_init_pt(struct sed_device *dev, const char *device_path)
 	memset(opal_dev, 0, sizeof(*opal_dev));
 	dev->priv = opal_dev;
 
-	opal_dev->session.tsn = 0;
-	opal_dev->session.hsn = 0;
+	opal_dev->session.tsn = opal_dev->session.hsn = 0;
+	opal_dev->req_buf = opal_dev->resp_buf = NULL;
 
-	ret = opal_level0_disc_pt(dev);
+	ret = resize_io_buf(opal_dev, MIN_IO_BUFFER_LEN);
 	if (ret)
 		goto init_deinit;
 
-	SEDCLI_DEBUG_PARAM("The device comid is: %u\n", opal_dev->comid);
+	ret = opal_dev_discv(dev);
+	if (ret)
+		goto init_deinit;
+
+	max_com_pkt_sz = tper_prop_to_val(dev, MCPS);
+	if (max_com_pkt_sz == -EINVAL)
+		goto init_deinit;
+
+	ret = resize_io_buf(opal_dev, max_com_pkt_sz);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error re-sizing the IO buffer\n");
+		return ret;
+	}
+
+	SEDCLI_DEBUG_PARAM("The device comid is: %u, MaxComPacketSize = %ld\n",
+				opal_dev->comid, max_com_pkt_sz);
 
 init_deinit:
 	if(ret)
 		opal_deinit_pt(dev);
 
 	return ret;
+}
+
+static int opal_dev_discv(struct sed_device *dev)
+{
+	int ret;
+
+	if (dev == NULL)
+		return -EINVAL;
+
+	ret = opal_level0_disc_pt(dev);
+	if (ret)
+		return ret;
+
+	return opal_tper_host_prep(dev);
 }
 
 int opal_dev_discv_info_pt(struct sed_device *dev,
@@ -424,11 +509,7 @@ int opal_dev_discv_info_pt(struct sed_device *dev,
 	if (dev == NULL || discv == NULL)
 		return -EINVAL;
 
-	ret = opal_level0_disc_pt(dev);
-	if (ret)
-		return ret;
-
-	ret = opal_tper_host_prep(dev);
+	ret = opal_dev_discv(dev);
 	if (ret)
 		return ret;
 
@@ -441,7 +522,7 @@ static void init_req(struct opal_device *dev)
 {
 	struct opal_header *header;
 
-	memset(dev->req_buf, 0, IO_BUFFER_LEN);
+	memset(dev->req_buf, 0, dev->req_buf_size);
 	header = (struct opal_header*) dev->req_buf;
 
 	header->compacket.ext_comid[0] = dev->comid >> 8;
@@ -554,9 +635,9 @@ static void prepare_cmd_header(struct opal_device *dev, uint8_t *buf, int pos)
 	/* Update lengths and padding in Opal packet constructs */
 	header->subpacket.length = htobe32(pos - sizeof(*header));
 	while (pos % 4) {
-		if (pos >= IO_BUFFER_LEN)
+		if (pos >= dev->req_buf_size)
 			break;
-		pos += append_u8(buf + (pos % 4), IO_BUFFER_LEN - pos, 0);
+		pos += append_u8(buf + (pos % 4), dev->req_buf_size - pos, 0);
 	}
 
 	header->packet.length =
@@ -573,7 +654,7 @@ static void prepare_req_buf(struct opal_device *dev, struct opal_req_item *data,
 	size_t buf_len;
 
 	buf = dev->req_buf + sizeof(struct opal_header);
-	buf_len = IO_BUFFER_LEN - sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
 
 	prepare_cmd_init(dev, buf, buf_len, &pos, uid, method);
 
@@ -667,7 +748,7 @@ static int opal_snd_rcv_cmd_parse_chk(int fd, struct opal_device *dev, bool end_
 
 	/* Send command and receive results */
 	ret = opal_send_recv(fd, dev->comid, dev->req_buf,
-		sizeof(dev->req_buf), dev->resp_buf, sizeof(dev->resp_buf));
+			dev->req_buf_size, dev->resp_buf, dev->resp_buf_size);
 	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in NVMe passthrough ops\n");
 		return ret;
@@ -1527,7 +1608,7 @@ static int opal_generic_write_table(int fd, struct opal_device *dev,
 				    uint64_t offset, uint64_t size)
 {
 	uint8_t *buf;
-	uint64_t len = 0, index = 0;
+	uint64_t len = 0, index = 0, remaining_buff_size;
 	int ret = 0, pos = 0;
 	size_t buf_len;
 
@@ -1549,7 +1630,7 @@ static int opal_generic_write_table(int fd, struct opal_device *dev,
 
 	while (index < size) {
 		buf = dev->req_buf + sizeof(struct opal_header);
-		buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+		buf_len = dev->req_buf_size - sizeof(struct opal_header);
 
 		prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[table],
 				 opal_method[OPAL_SET_METHOD_UID]);
@@ -1565,11 +1646,12 @@ static int opal_generic_write_table(int fd, struct opal_device *dev,
 		/*
 		 * The append_bytes used below, dependng upon the len either uses
 		 * short_atom_bytes_header (returns 1) or medium_atom_bytes_header
-		 * (returns 2). Hence we consider the MAX of the two i.e, 2.
+		 * (returns 2) or long_atom_bytes_header (returns 4).
+		 * Hence we consider the MAX of the three i.e, 4.
 		 *
 		 * The 1 byte is for the following ENDNAME token.
 		 */
-		uint64_t remaining_buff_size = buf_len - (pos + 2 + 1 + CMD_END_BYTES_NUM);
+		remaining_buff_size = buf_len - (pos + 4 + 1 + CMD_END_BYTES_NUM);
 
 		len = MIN(remaining_buff_size, (size - index));
 
