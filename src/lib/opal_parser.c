@@ -9,11 +9,16 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
+#include <assert.h>
 
 #include "opal_parser.h"
 #include "sedcli_log.h"
 
 #define msb64(x) (64 - __builtin_clzll(x))
+
+#define MAX_SHORT_ATOM_DATA_LEN         16
+#define MAX_MEDIUM_ATOM_DATA_LEN        2048
+#define MAX_LONG_ATOM_DATA_LEN          16777216
 
 struct _opal_token {
 	struct opal_token token;
@@ -113,6 +118,25 @@ static int append_medium_atom_bytes_header(uint8_t *buf, size_t len, int data_le
 	return 0;
 }
 
+static int append_long_atom_bytes_header(uint8_t *buf, size_t len, int data_len)
+{
+	uint8_t val = 0;
+
+	if (len >= 4) {
+		val = OPAL_ATOM_LONG_CODE;
+		val |= OPAL_ATOM_LONG_BYTESTRING;
+
+		buf[0] = val;
+		buf[1] = (data_len >> 16) & 0xff;
+		buf[2] = (data_len >> 8) & 0xff;
+		buf[3] = (data_len >> 0) & 0xff;
+
+		return 4;
+	}
+
+	return 0;
+}
+
 int append_u8(uint8_t *buf, size_t len, uint8_t val)
 {
 	if (len >= 1) {
@@ -159,26 +183,29 @@ int append_bytes(uint8_t *buf, size_t len, const uint8_t *src, int src_len)
 {
 	int ret = 0;
 
+	assert(src_len < MAX_LONG_ATOM_DATA_LEN);
+
 	/* data fits into opal short atom */
-	if (src_len <= 15) {
-		if (len >= src_len + 1) {
+	if (src_len < MAX_SHORT_ATOM_DATA_LEN) {
+		if (len >= src_len + 1)
 			ret += append_short_atom_bytes_header(buf, len, src_len);
-			memcpy(buf + ret, src, src_len);
-			ret += src_len;
-		}
+
 	/* data fits into opal medium atom */
-	}
-	else if (src_len <= 2047) {
-		if (len >= src_len + 2) {
+	} else if (src_len < MAX_MEDIUM_ATOM_DATA_LEN) {
+		if (len >= src_len + 2)
 			ret += append_medium_atom_bytes_header(buf, len, src_len);
-			memcpy(buf + ret, src, src_len);
-			ret += src_len;
-		}
+
+	/* data fits into opal long atom */
+	} else if (src_len < MAX_LONG_ATOM_DATA_LEN) {
+		if (len >= src_len + 4)
+			ret += append_long_atom_bytes_header(buf, len, src_len);
 	}
+
+	memcpy(buf + ret, src, src_len);
+	ret += src_len;
 
 	return ret;
 }
-
 
 static void parse_tiny_token(struct opal_token *token, uint8_t curr_byte)
 {
