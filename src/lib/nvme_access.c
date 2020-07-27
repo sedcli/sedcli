@@ -15,7 +15,7 @@
 #define NVME_SECURITY_SEND (0x81)
 #define NVME_SECURITY_RECV (0x82)
 
-#define OPAL_RECV_SLEEP (250000)
+#define OPAL_RECV_SLEEP (15000)
 
 #define SEND (1)
 #define RECV (0)
