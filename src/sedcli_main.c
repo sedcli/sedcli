@@ -67,6 +67,7 @@ static cli_option activatelsp_opts[] = {
 static cli_option reverttper_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'i', "psid", "Revert Trusted Peripheral (TPer) with the PSID authority", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
+	{'n', "non-destructive", "Non-Destructive Revert Trusted Peripheral (TPer) with the PSID authority", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
 	{0}
 };
 
@@ -238,6 +239,7 @@ struct sedcli_options {
 	int enable;
 	int done;
 	int offset;
+	int non_destructive;
 };
 
 static struct sedcli_options *opts = NULL;
@@ -300,6 +302,8 @@ int reverttper_handle_opts(char *opt, char **arg)
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
 	} else if (!strcmp(opt, "psid")) {
 		opts->psid = 1;
+	} else if (!strcmp(opt, "non-destructive")) {
+		opts->non_destructive = 1;
 	}
 
 	return 0;
@@ -637,7 +641,7 @@ static int handle_reverttper(void)
 		return ret;
 	}
 
-	ret = sed_reverttper(dev, &opts->pwd, opts->psid);
+	ret = sed_reverttper(dev, &opts->pwd, opts->psid, opts->non_destructive);
 
 	print_sed_status(ret);
 

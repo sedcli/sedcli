@@ -20,7 +20,7 @@ typedef int (*init)(struct sed_device *, const char *);
 typedef int (*lvl0_discv) (struct sed_device *, struct sed_opal_level0_discovery *);
 typedef int (*take_ownership)(struct sed_device *, const struct sed_key *);
 typedef int (*get_msid_pin)(struct sed_device *, struct sed_key *);
-typedef int (*reverttper)(struct sed_device *, const struct sed_key *, bool);
+typedef int (*reverttper)(struct sed_device *, const struct sed_key *, bool, bool);
 typedef int (*activate_lsp)(struct sed_device *, const struct sed_key *,
 			char *, bool);
 typedef int (*revertsp)(struct sed_device *, const struct sed_key *, bool);
@@ -236,9 +236,9 @@ int sed_setup_global_range(struct sed_device *dev, const struct sed_key *key)
 	return curr_if->setup_global_range_fn(dev, key);
 }
 
-int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid)
+int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid, bool non_destructive)
 {
-	return curr_if->revert_fn(dev, key, psid);
+	return curr_if->revert_fn(dev, key, psid, non_destructive);
 }
 
 int sed_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)

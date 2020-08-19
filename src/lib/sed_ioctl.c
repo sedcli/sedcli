@@ -377,10 +377,13 @@ int sedopal_secure_erase_lr(struct sed_device *dev, const char *password, uint8_
 }
 
 int sedopal_reverttper(struct sed_device *dev, const struct sed_key *key,
-				bool psid)
+				bool psid, bool non_destructive)
 {
 	int fd = dev->fd;
 	unsigned long ioctl_code;
+
+	if (non_destructive)
+		return -EOPNOTSUPP;
 
 	if (psid) {
 #ifdef CONFIG_OPAL_DRIVER_PSID_REVERT
