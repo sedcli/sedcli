@@ -210,6 +210,7 @@ static int get_opal_auth_uid(enum SED_AUTHORITY auth)
 static void cpy_tper_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
+	discv->sed_tper.flag = NVME_LVL0_DISCV_AVAIL;
 	memcpy(&discv->sed_tper, (struct tper_supported_feat *)feat,
 		sizeof(struct tper_supported_feat));
 }
@@ -217,6 +218,7 @@ static void cpy_tper_feat(struct sed_opal_level0_discovery *discv,
 static void cpy_locking_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
+	discv->sed_locking.flag = NVME_LVL0_DISCV_AVAIL;
 	memcpy(&discv->sed_locking, (struct locking_supported_feat *)feat,
 		sizeof(struct locking_supported_feat));
 }
@@ -224,6 +226,7 @@ static void cpy_locking_feat(struct sed_opal_level0_discovery *discv,
 static void cpy_geometry_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
+	discv->sed_geo.flag = NVME_LVL0_DISCV_AVAIL;
 	memcpy(&discv->sed_geo, (struct geometry_supported_feat *)feat,
 		sizeof(struct geometry_supported_feat));
 }
@@ -231,6 +234,7 @@ static void cpy_geometry_feat(struct sed_opal_level0_discovery *discv,
 static void cpy_datastr_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
+	discv->sed_datastr.flag = NVME_LVL0_DISCV_AVAIL;
 	memcpy(&discv->sed_datastr, (struct datastr_table_supported_feat *)feat,
 		sizeof(struct datastr_table_supported_feat));
 }
@@ -238,6 +242,7 @@ static void cpy_datastr_feat(struct sed_opal_level0_discovery *discv,
 static void cpy_opalv100_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
+	discv->sed_opalv100.flag = NVME_LVL0_DISCV_AVAIL;
 	memcpy(&discv->sed_opalv100, (struct opalv100_supported_feat *)feat,
 		sizeof(struct opalv100_supported_feat));
 }
@@ -245,6 +250,7 @@ static void cpy_opalv100_feat(struct sed_opal_level0_discovery *discv,
 static void cpy_opalv200_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
+	discv->sed_opalv200.flag = NVME_LVL0_DISCV_AVAIL;
 	memcpy(&discv->sed_opalv200, (struct opalv200_supported_feat *)feat,
 		sizeof(struct opalv200_supported_feat));
 }

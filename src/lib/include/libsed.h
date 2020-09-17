@@ -42,6 +42,8 @@ enum SED_AUTHORITY {
 
 struct sed_device;
 
+#define NVME_LVL0_DISCV_AVAIL	(1 << 0)
+
 struct sed_tper_supported_feat {
 	uint8_t sync_supp :1;
 	uint8_t async_supp :1;
@@ -51,6 +53,7 @@ struct sed_tper_supported_feat {
 	uint8_t reserved1 :1;
 	uint8_t comid_mgmt_supp :1;
 	uint8_t reserved2:1;
+	uint8_t flag;
 } __attribute__((__packed__));
 
 struct sed_locking_supported_feat {
@@ -61,6 +64,7 @@ struct sed_locking_supported_feat {
 	uint8_t mbr_en:1;
 	uint8_t mbr_done:1;
 	uint8_t reserved:2;
+	uint8_t flag;
 } __attribute__((__packed__));
 
 struct sed_geometry_supported_feat {
@@ -72,17 +76,20 @@ struct sed_geometry_supported_feat {
 	uint32_t logical_blk_sz;
 	uint64_t alignmnt_granlrty;
 	uint64_t lowest_aligned_lba;
+	uint8_t flag;
 } __attribute__((__packed__));
 
 struct sed_datastr_table_supported_feat {
 	uint16_t max_num_datastr_tbls;
 	uint32_t max_total_size_datstr_tbls;
 	uint32_t datastr_tbl_size_align;
+	uint8_t flag;
 } __attribute__((__packed__));
 
 struct sed_opalv100_supported_feat {
 	uint16_t v1_base_comid;
 	uint16_t v1_comid_num;
+	uint8_t flag;
 } __attribute__((__packed__));
 
 struct sed_opalv200_supported_feat {
@@ -97,6 +104,7 @@ struct sed_opalv200_supported_feat {
 	uint8_t init_pin;
 	uint8_t revert_pin;
 	uint8_t reserved2[5];
+	uint8_t flag;
 } __attribute__((__packed__));
 
 struct sed_tper_properties {
