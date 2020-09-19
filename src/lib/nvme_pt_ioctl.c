@@ -30,6 +30,7 @@
 #define OPAL_FEAT_SUM        0x0201
 #define OPAL_FEAT_OPALV100   0x0200
 #define OPAL_FEAT_OPALV200   0x0203
+#define OPAL_FEAT_BLOCKSID   0x0402
 
 #define SUM_SELECTION_LIST   0x060000
 
@@ -242,6 +243,13 @@ static void cpy_opalv100_feat(struct sed_opal_level0_discovery *discv,
 		sizeof(struct opalv100_supported_feat));
 }
 
+static void cpy_blocksid_feat(struct sed_opal_level0_discovery *discv,
+				void *feat)
+{
+	memcpy(&discv->sed_blocksid, (struct blocksid_supported_feat *)feat,
+		sizeof(struct blocksid_supported_feat));
+}
+
 static void cpy_opalv200_feat(struct sed_opal_level0_discovery *discv,
 				void *feat)
 {
@@ -326,6 +334,14 @@ static int opal_level0_disc_pt(struct sed_device *device)
 		case OPAL_FEAT_SUM:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_BLOCKSID:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+			cpy_blocksid_feat(discv, &desc->feat.blocksid);
+			discv->feat_avail_flag.feat_blocksid = 1;
 
 			feat_no++;
 			break;
