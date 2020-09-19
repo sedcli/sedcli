@@ -493,6 +493,19 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 			      discv->sed_tper_props.property[i].value);
 	}
 
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_blocksid) {
+		/* Printing BlockSID Features */
+		sedcli_printf(LOG_INFO, "\nBlock SID FEATURES SUPPORTED\n");
+		sedcli_printf(LOG_INFO, "\tSID Value State                   : %d\n",
+						discv->sed_lvl0_discv.sed_blocksid.sid_valuestate ? 1 : 0);
+
+		sedcli_printf(LOG_INFO, "\tSID Blocked State                 : %d\n",
+						discv->sed_lvl0_discv.sed_blocksid.sid_blockstate ? 1 : 0);
+
+		sedcli_printf(LOG_INFO, "\tHardware Reset Flag               : %d\n",
+						discv->sed_lvl0_discv.sed_blocksid.hardware_reset ? 1 : 0);
+	}
+
 	sedcli_printf(LOG_INFO, "\n");
 }
 

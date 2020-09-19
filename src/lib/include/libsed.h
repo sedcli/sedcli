@@ -106,13 +106,28 @@ struct sed_tper_properties {
 	} property[NUM_TPER_PROPS];
 } __attribute__((__packed__));
 
+struct sed_blocksid_supported_feat {
+	uint8_t sid_valuestate:1;
+	uint8_t sid_blockstate:1;
+	uint8_t reserved1:6;
+	uint8_t hardware_reset:1;
+	uint8_t reserved2:7;
+	uint8_t reserved3[10];
+} __attribute__((__packed__));
+
 struct sed_opal_level0_discovery {
+	struct {
+		uint64_t feat_blocksid:1;
+		uint64_t reserved:63;
+	} __attribute__((__packed__)) feat_avail_flag;
+
 	struct sed_tper_supported_feat sed_tper;
 	struct sed_locking_supported_feat sed_locking;
 	struct sed_geometry_supported_feat sed_geo;
 	struct sed_datastr_table_supported_feat sed_datastr;
 	struct sed_opalv100_supported_feat sed_opalv100;
 	struct sed_opalv200_supported_feat sed_opalv200;
+	struct sed_blocksid_supported_feat sed_blocksid;
 };
 
 struct sed_opal_device_discv {

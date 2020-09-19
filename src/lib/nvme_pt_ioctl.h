@@ -227,6 +227,15 @@ struct datastr_table_supported_feat {
 	uint32_t datastr_tbl_size_align;
 } __attribute__((__packed__));
 
+struct blocksid_supported_feat {
+	uint8_t sid_valuestate:1;
+	uint8_t sid_blockedstate:1;
+	uint8_t reserved:6;
+	uint8_t hardware_reset:1;
+	uint8_t reserved1:7;
+	uint8_t reserved2[10];
+} __attribute__((__packed__));
+
 struct opalv100_supported_feat {
 	uint16_t v1_base_comid;
 	uint16_t v1_comid_num;
@@ -307,6 +316,8 @@ struct opal_level0_feat_desc {
 		struct opalv100_supported_feat opalv100;
 
 		struct opalv200_supported_feat opalv200;
+
+		struct blocksid_supported_feat blocksid;
 	} feat;
 } __attribute__((__packed__)) ;
 
