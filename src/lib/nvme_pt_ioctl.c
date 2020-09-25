@@ -307,6 +307,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
 			cpy_tper_feat(discv, &desc->feat.tper.flags);
+			discv->feat_avail_flag.feat_tper = 1;
 
 			feat_no++;
 			break;
@@ -314,6 +315,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
 			cpy_locking_feat(discv, &desc->feat.locking.flags);
+			discv->feat_avail_flag.feat_locking = 1;
 
 			feat_no++;
 			break;
@@ -321,6 +323,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
 			cpy_geometry_feat(discv, &desc->feat.geo);
+			discv->feat_avail_flag.feat_geometry = 1;
 
 			feat_no++;
 			break;
@@ -328,12 +331,14 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
 			cpy_datastr_feat(discv, &desc->feat.datastr.datastr_tbl);
+			discv->feat_avail_flag.feat_datastr_table = 1;
 
 			feat_no++;
 			break;
 		case OPAL_FEAT_SUM:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
+			discv->feat_avail_flag.feat_sum = 1;
 
 			feat_no++;
 			break;
@@ -349,6 +354,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
 			cpy_opalv100_feat(discv, &desc->feat.opalv100);
+			discv->feat_avail_flag.feat_opalv100 = 1;
 
 			feat_no++;
 			break;
@@ -356,6 +362,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
 			cpy_opalv200_feat(discv, &desc->feat.opalv200);
+			discv->feat_avail_flag.feat_opalv200 = 1;
 
 			curr_feat->feat.opalv200.base_comid =
 				be16toh(desc->feat.opalv200.base_comid);
