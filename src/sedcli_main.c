@@ -519,9 +519,10 @@ static void print_tper_properties(struct sed_tper_properties *tper)
 
 static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const char *dev_path)
 {
-	uint16_t base_comid = be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid);
+	uint16_t base_comid_v1 = be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid);
+	uint16_t base_comid_v2 = be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid);
 
-	if (!base_comid) {
+	if (!base_comid_v1 && !base_comid_v2) {
 		sedcli_printf(LOG_INFO, "Invalid disk, %s is NOT SED-OPAL Compliant\n", dev_path);
 		return;
 	}
