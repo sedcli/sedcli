@@ -504,6 +504,23 @@ static void print_blocksid_feat(struct sed_blocksid_supported_feat *blocksid)
 	sedcli_printf(LOG_INFO, "\tHardware Reset Flag : %d\n", blocksid->hardware_reset ? 1 : 0);
 }
 
+static void print_cnl_feat(struct sed_cnl_feat *cnl)
+{
+	sedcli_printf(LOG_INFO, "\nSED CNL FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "---------------------------\n");
+
+	sedcli_printf(LOG_INFO, "\tNamespace Non-Global Range Locking objects Supported : %s\n",
+			cnl->ranges_rsvd.range_c ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tNamespace Non-Global Range Locking objects           : %s\n",
+			cnl->ranges_rsvd.range_p ? "ONE or MORE" : "ZERO");
+	sedcli_printf(LOG_INFO, "\tMaximum Key Count                                    : %d\n",
+			cnl->max_key_count);
+	sedcli_printf(LOG_INFO, "\tUnused Key Count                                     : %d\n",
+			cnl->unused_key_count);
+	sedcli_printf(LOG_INFO, "\tMaximum Ranges Per Namespace                         : %d (%#x)\n",
+			cnl->max_ranges_per_ns, cnl->max_ranges_per_ns);
+}
+
 static void print_tper_properties(struct sed_tper_properties *tper)
 {
 	sedcli_printf(LOG_INFO, "\nTPER PROPERTIES\n");
@@ -541,6 +558,8 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 		print_opalv200_feat(&discv->sed_lvl0_discv.sed_opalv200);
 	if (discv->sed_lvl0_discv.feat_avail_flag.feat_blocksid)
 		print_blocksid_feat(&discv->sed_lvl0_discv.sed_blocksid);
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_cnl)
+		print_cnl_feat(&discv->sed_lvl0_discv.sed_cnl);
 	print_tper_properties(&discv->sed_tper_props);
 
 	sedcli_printf(LOG_INFO, "\n");
