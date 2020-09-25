@@ -117,8 +117,15 @@ struct sed_blocksid_supported_feat {
 
 struct sed_opal_level0_discovery {
 	struct {
+		uint64_t feat_tper:1;
+		uint64_t feat_locking:1;
+		uint64_t feat_geometry:1;
+		uint64_t feat_datastr_table:1;
+		uint64_t feat_opalv100:1;
+		uint64_t feat_opalv200:1;
 		uint64_t feat_blocksid:1;
-		uint64_t reserved:63;
+		uint64_t feat_sum:1;
+		uint64_t reserved:56;
 	} __attribute__((__packed__)) feat_avail_flag;
 
 	struct sed_tper_supported_feat sed_tper;
