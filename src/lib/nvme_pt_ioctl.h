@@ -255,6 +255,18 @@ struct opalv200_supported_feat {
 	uint8_t reserved2[5];
 } __attribute__((__packed__));
 
+struct cnl_feat {
+	struct {
+		uint8_t rsvd1:6;
+		uint8_t range_p:1;
+		uint8_t range_c:1;
+	} __attribute__((__packed__)) ranges_rsvd;
+	uint8_t rsvd2[3];
+	uint32_t max_key_count;
+	uint32_t unused_key_count;
+	uint32_t max_ranges_per_ns;
+} __attribute__((__packed__));
+
 struct opal_l0_feat {
 	int type;
 	union {
@@ -318,6 +330,8 @@ struct opal_level0_feat_desc {
 		struct opalv200_supported_feat opalv200;
 
 		struct blocksid_supported_feat blocksid;
+
+		struct cnl_feat cnl;
 	} feat;
 } __attribute__((__packed__)) ;
 
