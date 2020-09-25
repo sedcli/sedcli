@@ -115,6 +115,18 @@ struct sed_blocksid_supported_feat {
 	uint8_t reserved3[10];
 } __attribute__((__packed__));
 
+struct sed_cnl_feat {
+	struct {
+		uint8_t rsvd1:6;
+		uint8_t range_p:1;
+		uint8_t range_c:1;
+	} __attribute__((__packed__)) ranges_rsvd;
+	uint8_t rsvd2[3];
+	uint32_t max_key_count;
+	uint32_t unused_key_count;
+	uint32_t max_ranges_per_ns;
+} __attribute__((__packed__));
+
 struct sed_opal_level0_discovery {
 	struct {
 		uint64_t feat_tper:1;
@@ -125,7 +137,8 @@ struct sed_opal_level0_discovery {
 		uint64_t feat_opalv200:1;
 		uint64_t feat_blocksid:1;
 		uint64_t feat_sum:1;
-		uint64_t reserved:56;
+		uint64_t feat_cnl:1;
+		uint64_t reserved:55;
 	} __attribute__((__packed__)) feat_avail_flag;
 
 	struct sed_tper_supported_feat sed_tper;
@@ -135,6 +148,7 @@ struct sed_opal_level0_discovery {
 	struct sed_opalv100_supported_feat sed_opalv100;
 	struct sed_opalv200_supported_feat sed_opalv200;
 	struct sed_blocksid_supported_feat sed_blocksid;
+	struct sed_cnl_feat sed_cnl;
 };
 
 struct sed_opal_device_discv {
