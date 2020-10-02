@@ -251,7 +251,7 @@ int sed_lock_unlock(struct sed_device *dev, const struct sed_key *key, enum SED_
 /**
  *
  */
-int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid);
+int sed_reverttper(struct sed_device *dev, const struct sed_key *key, bool psid, bool non_destructive);
 
 /**
  * Revert Locking SP to its Original Factory State.

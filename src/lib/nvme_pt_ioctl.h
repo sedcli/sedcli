@@ -387,7 +387,8 @@ int opal_takeownership_pt(struct sed_device *dev, const struct sed_key *key);
 
 int opal_get_msid_pin_pt(struct sed_device *dev, struct sed_key *msid_pin);
 
-int opal_reverttper_pt(struct sed_device *dev, const struct sed_key *key, bool psid);
+int opal_reverttper_pt(struct sed_device *dev, const struct sed_key *key, bool psid,
+		       bool non_destructive);
 
 int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key,
 		bool keep_global_rn_key);

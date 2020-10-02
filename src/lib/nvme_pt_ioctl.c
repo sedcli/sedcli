@@ -1942,14 +1942,25 @@ end_sessn:
 }
 
 int opal_reverttper_pt(struct sed_device *dev, const struct sed_key *key,
-		bool psid)
+		bool psid, bool non_destructive)
 {
 	struct opal_device *opal_dev;
 	int ret = 0, auth;
 
-	if (key == NULL) {
-		SEDCLI_DEBUG_MSG("Must Provide a password.\n");
+	if (psid && non_destructive) {
+		SEDCLI_DEBUG_MSG("non_destructive cannot be performed when psid is selected.\n");
 		return -EINVAL;
+	}
+
+	if (dev == NULL || key == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide a password or a valid device\n");
+		return -EINVAL;
+	}
+
+	if (non_destructive) {
+		ret = opal_revertlsp_pt(dev, key, true);
+		if (ret)
+			return ret;
 	}
 
 	opal_dev = dev->priv;
@@ -2457,7 +2468,6 @@ int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
 		goto end_sessn;
 
 	ret = list_lr(dev->fd, opal_dev, lrs);
-
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);
 	return ret;

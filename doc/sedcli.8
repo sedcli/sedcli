@@ -60,8 +60,9 @@ Takes ownership of the device.
 .IP "\fB\-A -d <device>\fR or \fB\-\-activate-lsp --device <device>\fR"
 Activates Locking SP.
 
-.IP "\fB\-R -d <device> [-i]\fR or \fB\-\-revert --device <device> [--psid]\fR"
-Reverts TPer to Manufactured-Inactivate state using either SID or PSID authority.
+.IP "\fB\-R -d <device> [-i] [-n]\fR or \fB\-\-revert --device <device> [--psid] [--non-destructive]\fR"
+Performs Destructive or Non-Destructive Revert TPer to Manufactured-Inactivate
+state using either SID or PSID authority.
 
 .IP "\fB\-S -d <device>\fR or \fB\-\-setup-global-range --device <device>\fR"
 Sets Read Lock Enabled (RLE) and Write Lock Enabled (WLE) bis for global locking
