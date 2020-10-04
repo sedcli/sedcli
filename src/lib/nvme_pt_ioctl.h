@@ -285,6 +285,8 @@ struct opal_l0_feat {
 		struct opalv100_supported_feat opalv100;
 
 		struct opalv200_supported_feat opalv200;
+
+		struct opalv200_supported_feat ruby;
 	} feat;
 };
 
@@ -328,6 +330,8 @@ struct opal_level0_feat_desc {
 		struct opalv100_supported_feat opalv100;
 
 		struct opalv200_supported_feat opalv200;
+
+		struct opalv200_supported_feat ruby;
 
 		struct blocksid_supported_feat blocksid;
 

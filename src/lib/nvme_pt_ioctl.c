@@ -30,6 +30,7 @@
 #define OPAL_FEAT_SUM        0x0201
 #define OPAL_FEAT_OPALV100   0x0200
 #define OPAL_FEAT_OPALV200   0x0203
+#define OPAL_FEAT_RUBY       0x0304
 #define OPAL_FEAT_BLOCKSID   0x0402
 #define OPAL_FEAT_CNL        0x0403
 
@@ -251,11 +252,10 @@ static void cpy_blocksid_feat(struct sed_opal_level0_discovery *discv,
 		sizeof(struct blocksid_supported_feat));
 }
 
-static void cpy_opalv200_feat(struct sed_opal_level0_discovery *discv,
-				void *feat)
+static void cpy_opal_ruby_feat(struct sed_opalv200_supported_feat *header_to,
+			      struct opalv200_supported_feat *header_from)
 {
-	memcpy(&discv->sed_opalv200, (struct opalv200_supported_feat *)feat,
-		sizeof(struct opalv200_supported_feat));
+	memcpy(header_to, header_from, sizeof(*header_to));
 }
 
 static void cpy_cnl_feat(struct sed_opal_level0_discovery *discv, void *feat)
@@ -368,12 +368,24 @@ static int opal_level0_disc_pt(struct sed_device *device)
 		case OPAL_FEAT_OPALV200:
 			curr_feat = &disc_data->feats[feat_no];
 			curr_feat->type = feat_code;
-			cpy_opalv200_feat(discv, &desc->feat.opalv200);
+			cpy_opal_ruby_feat(&discv->sed_opalv200, &desc->feat.opalv200);
 			discv->feat_avail_flag.feat_opalv200 = 1;
 
 			curr_feat->feat.opalv200.base_comid =
 				be16toh(desc->feat.opalv200.base_comid);
 			disc_data->comid = curr_feat->feat.opalv200.base_comid;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_RUBY:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+			cpy_opal_ruby_feat(&discv->sed_ruby, &desc->feat.ruby);
+			discv->feat_avail_flag.feat_ruby = 1;
+
+			curr_feat->feat.ruby.base_comid = be16toh(
+					desc->feat.ruby.base_comid);
+			disc_data->comid = curr_feat->feat.ruby.base_comid;
 
 			feat_no++;
 			break;

@@ -135,10 +135,11 @@ struct sed_opal_level0_discovery {
 		uint64_t feat_datastr_table:1;
 		uint64_t feat_opalv100:1;
 		uint64_t feat_opalv200:1;
+		uint64_t feat_ruby:1;
 		uint64_t feat_blocksid:1;
 		uint64_t feat_sum:1;
 		uint64_t feat_cnl:1;
-		uint64_t reserved:55;
+		uint64_t reserved:54;
 	} __attribute__((__packed__)) feat_avail_flag;
 
 	struct sed_tper_supported_feat sed_tper;
@@ -147,6 +148,7 @@ struct sed_opal_level0_discovery {
 	struct sed_datastr_table_supported_feat sed_datastr;
 	struct sed_opalv100_supported_feat sed_opalv100;
 	struct sed_opalv200_supported_feat sed_opalv200;
+	struct sed_opalv200_supported_feat sed_ruby;
 	struct sed_blocksid_supported_feat sed_blocksid;
 	struct sed_cnl_feat sed_cnl;
 };
