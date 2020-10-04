@@ -75,6 +75,7 @@
 enum {
 	TCG_SECP_00 = 0,
 	TCG_SECP_01,
+	TCG_SECP_02,
 };
 
 enum opaluid {
@@ -438,6 +439,8 @@ int opal_ds_add_anybody_get(struct sed_device *dev, const struct sed_key *key);
 
 int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
 		    struct sed_opal_lockingranges *lrs);
+
+int opal_block_sid_pt(struct sed_device *dev, bool hw_reset);
 
 void opal_deinit_pt(struct sed_device *dev);
 

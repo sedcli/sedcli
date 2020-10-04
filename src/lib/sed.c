@@ -47,6 +47,7 @@ typedef int (*ds_read)(struct sed_device *, enum SED_AUTHORITY, const struct sed
 typedef int (*ds_write)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, const uint8_t *, uint32_t, uint32_t);
 typedef int (*list_lr)(struct sed_device *, const struct sed_key *,
 		       struct sed_opal_lockingranges *);
+typedef int (*blocksid)(struct sed_device *, bool);
 typedef void (*deinit)(struct sed_device *);
 
 struct opal_interface {
@@ -71,6 +72,7 @@ struct opal_interface {
 	ds_read ds_read_fn;
 	ds_write ds_write_fn;
 	list_lr list_lr_fn;
+	blocksid blocksid_fn;
 	deinit deinit_fn;
 };
 
@@ -97,6 +99,7 @@ static struct opal_interface opal_if = {
 	.ds_read_fn = NULL,
 	.ds_write_fn = NULL,
 	.list_lr_fn = NULL,
+	.blocksid_fn = NULL,
 	.deinit_fn = sedopal_deinit
 };
 #endif
@@ -123,6 +126,7 @@ static struct opal_interface nvmept_if = {
 	.ds_read_fn = opal_ds_read,
 	.ds_write_fn = opal_ds_write,
 	.list_lr_fn	= opal_list_lr_pt,
+	.blocksid_fn	= opal_block_sid_pt,
 	.deinit_fn	= opal_deinit_pt
 };
 
@@ -367,6 +371,14 @@ int sed_list_lr(struct sed_device *dev, const struct sed_key *key,
 		return -EOPNOTSUPP;
 
 	return curr_if->list_lr_fn(dev, key, lrs);
+}
+
+int sed_issue_blocksid_cmd(struct sed_device *dev, bool hw_reset)
+{
+	if (curr_if->blocksid_fn == NULL)
+		return -EOPNOTSUPP;
+
+	return curr_if->blocksid_fn(dev, hw_reset);
 }
 
 const char *sed_error_text(int sed_status)

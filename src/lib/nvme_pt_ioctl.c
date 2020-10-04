@@ -40,6 +40,9 @@
 
 #define MIN_IO_BUFFER_LEN 2048
 
+#define OPAL_BLOCKSID_COMID  5
+#define BLOCKSID_PAYLOAD_SZ  512
+
 /* #define TPer property name strings here */
 #define MCPS "MaxComPacketSize"
 
@@ -2494,6 +2497,32 @@ int opal_write_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
 
 end_sessn:
 	opal_end_session(dev->fd, opal_dev);
+	return ret;
+}
+
+int opal_block_sid_pt(struct sed_device *dev, bool hw_reset)
+{
+	struct opal_device *device = dev->priv;
+	int ret, req_size = BLOCKSID_PAYLOAD_SZ;
+
+	/* Send Block SID authentication command, no IF_RECV response is expected */
+
+	if (device->req_buf_size < BLOCKSID_PAYLOAD_SZ) {
+		SEDCLI_DEBUG_MSG("Too small buffer size of BlockSID payload\n");
+		return -EINVAL;
+	}
+
+	/* Set Hardware Reset in LSB of the first byte in  */
+	/* BlockSID payload based on Clear Event flag user */
+	/* supplied through hwreset argument               */
+	*(device->req_buf) = hw_reset ? 1 : 0;
+
+	ret = opal_send(dev->fd, TCG_SECP_02, OPAL_BLOCKSID_COMID,
+							device->req_buf, req_size);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in NVMe passthrough ops\n");
+	}
+
 	return ret;
 }
 
