@@ -484,18 +484,27 @@ static void print_opalv100_feat(struct sed_opalv100_supported_feat *opalv100)
 	sedcli_printf(LOG_INFO, "\tNumber of ComIDs : %d\n", be16toh(opalv100->v1_comid_num));
 }
 
-static void print_opalv200_feat(struct sed_opalv200_supported_feat *opalv200)
+static void print_opalv200_header()
 {
 	sedcli_printf(LOG_INFO, "\nSED Opal v2.00 FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "----------------------------------\n");
+}
 
-	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(opalv200->base_comid));
-	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(opalv200->comid_num));
-	sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", opalv200->rangecross_rsvd.range_crossing ? 0 : 1);
-	sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(opalv200->admin_lp_auth_num));
-	sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(opalv200->user_lp_auth_num));
-	sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", opalv200->init_pin);
-	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", opalv200->revert_pin);
+static void print_ruby_header()
+{
+	sedcli_printf(LOG_INFO, "\nSED Ruby FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "----------------------------------\n");
+}
+
+static void print_opalv200_ruby_feat(struct sed_opalv200_supported_feat *header)
+{
+	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(header->base_comid));
+	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(header->comid_num));
+	sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", header->rangecross_rsvd.range_crossing ? 0 : 1);
+	sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(header->admin_lp_auth_num));
+	sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(header->user_lp_auth_num));
+	sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", header->init_pin);
+	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", header->revert_pin);
 }
 
 static void print_blocksid_feat(struct sed_blocksid_supported_feat *blocksid)
@@ -540,10 +549,17 @@ static void print_tper_properties(struct sed_tper_properties *tper)
 
 static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const char *dev_path)
 {
-	uint16_t base_comid_v1 = be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid);
-	uint16_t base_comid_v2 = be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid);
+	uint16_t comid = 0;
 
-	if (!base_comid_v1 && !base_comid_v2) {
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200) {
+		comid = be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid);
+	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv100) {
+		comid = be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid);
+	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
+		comid = be16toh(discv->sed_lvl0_discv.sed_ruby.base_comid);
+	}
+
+	if (!comid) {
 		sedcli_printf(LOG_INFO, "Invalid disk, %s is NOT SED-OPAL Compliant\n", dev_path);
 		return;
 	}
@@ -558,12 +574,18 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 		print_datastr_feat(&discv->sed_lvl0_discv.sed_datastr);
 	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv100)
 		print_opalv100_feat(&discv->sed_lvl0_discv.sed_opalv100);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200)
-		print_opalv200_feat(&discv->sed_lvl0_discv.sed_opalv200);
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200) {
+		print_opalv200_header();
+		print_opalv200_ruby_feat(&discv->sed_lvl0_discv.sed_opalv200);
+	}
 	if (discv->sed_lvl0_discv.feat_avail_flag.feat_blocksid)
 		print_blocksid_feat(&discv->sed_lvl0_discv.sed_blocksid);
 	if (discv->sed_lvl0_discv.feat_avail_flag.feat_cnl)
 		print_cnl_feat(&discv->sed_lvl0_discv.sed_cnl);
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
+		print_ruby_header();
+		print_opalv200_ruby_feat(&discv->sed_lvl0_discv.sed_ruby);
+	}
 	print_tper_properties(&discv->sed_tper_props);
 
 	sedcli_printf(LOG_INFO, "\n");
@@ -578,10 +600,16 @@ char *DEV_SED_LOCKED;
 static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
 {
 	bool locking_enabled;
-	uint16_t comid;
+	uint16_t comid = 0;
 
 	locking_enabled = discv->sed_lvl0_discv.sed_locking.locking_en ? true : false;
-	comid = discv->sed_lvl0_discv.sed_opalv200.base_comid;
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200) {
+		comid = discv->sed_lvl0_discv.sed_opalv200.base_comid;
+	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
+		comid = discv->sed_lvl0_discv.sed_ruby.base_comid;
+	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv100) {
+		comid = discv->sed_lvl0_discv.sed_opalv100.v1_base_comid;
+	}
 
 	if (!comid)
 		DEV_SED_COMPATIBLE = SED_DISABLE;
