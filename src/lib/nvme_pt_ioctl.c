@@ -2503,22 +2503,18 @@ end_sessn:
 int opal_block_sid_pt(struct sed_device *dev, bool hw_reset)
 {
 	struct opal_device *device = dev->priv;
-	int ret, req_size = BLOCKSID_PAYLOAD_SZ;
+	int ret;
 
 	/* Send Block SID authentication command, no IF_RECV response is expected */
 
-	if (device->req_buf_size < BLOCKSID_PAYLOAD_SZ) {
-		SEDCLI_DEBUG_MSG("Too small buffer size of BlockSID payload\n");
-		return -EINVAL;
-	}
+	/* Set Hardware Reset in LSB of the first byte in
+	 * BlockSID payload based on Clear Event flag user
+	 * supplied through hwreset argument */
 
-	/* Set Hardware Reset in LSB of the first byte in  */
-	/* BlockSID payload based on Clear Event flag user */
-	/* supplied through hwreset argument               */
 	*(device->req_buf) = hw_reset ? 1 : 0;
 
 	ret = opal_send(dev->fd, TCG_SECP_02, OPAL_BLOCKSID_COMID,
-							device->req_buf, req_size);
+							device->req_buf, BLOCKSID_PAYLOAD_SZ);
 	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in NVMe passthrough ops\n");
 	}
