@@ -255,6 +255,30 @@ struct opalv200_supported_feat {
 	uint8_t reserved2[5];
 } __attribute__((__packed__));
 
+struct pyrite_supported_feat {
+	uint16_t base_comid;
+	uint16_t comid_num;
+	uint8_t reserved[5];
+	uint8_t init_pin;
+	uint8_t revert_pin;
+	uint8_t reserved2[5];
+} __attribute__((__packed__));
+
+struct data_rm_mechanism_feat {
+	uint8_t reserved;
+	struct {
+		uint8_t rm_op_processing:1;
+		uint8_t rsvd1:7;
+	} __attribute__((__packed__)) rmopprocessing_rsvd;
+	uint8_t supp_data_rm_mechanism;
+	struct {
+		uint8_t data_rm_time_fmt:6;
+		uint8_t rsvd2:2;
+	} __attribute__((__packed__)) datarmtimefmtbits_rsvd;
+	uint16_t data_rm_time[6];
+	uint8_t reserved2[16];
+} __attribute__((__packed__));
+
 struct cnl_feat {
 	struct {
 		uint8_t rsvd1:6;
@@ -287,6 +311,10 @@ struct opal_l0_feat {
 		struct opalv200_supported_feat opalv200;
 
 		struct opalv200_supported_feat ruby;
+
+		struct pyrite_supported_feat pyritev100;
+
+		struct pyrite_supported_feat pyritev200;
 	} feat;
 };
 
@@ -332,6 +360,12 @@ struct opal_level0_feat_desc {
 		struct opalv200_supported_feat opalv200;
 
 		struct opalv200_supported_feat ruby;
+
+		struct pyrite_supported_feat pyritev100;
+
+		struct pyrite_supported_feat pyritev200;
+
+		struct data_rm_mechanism_feat data_rm_mechanism;
 
 		struct blocksid_supported_feat blocksid;
 

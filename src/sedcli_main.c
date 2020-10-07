@@ -20,9 +20,13 @@
 #include "argp.h"
 #include "sedcli_util.h"
 
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
+
 #define SED_MIN_KEY_LEN (8)
 
 #define SEDCLI_TITLE "Self-Encrypting Drive command line interface (sedcli)"
+#define PYRITE_V100 "v1.00"
+#define PYRITE_V200 "v2.00"
 
 extern sedcli_printf_t sedcli_printf;
 
@@ -225,6 +229,20 @@ static cli_command sedcli_commands[] = {
 		.help = NULL
 	},
 	{0},
+};
+
+struct supp_data_rm_mechanism_map {
+	int mask;
+	char *text;
+};
+
+static struct supp_data_rm_mechanism_map map[] = {
+	{ .mask = (1 << 0), .text = "Overwrite Data Erase" },
+	{ .mask = (1 << 1), .text = "Block Erase" },
+	{ .mask = (1 << 2), .text = "Crypto Erase" },
+	{ .mask = (1 << 3), .text = "Unmap" },
+	{ .mask = (1 << 4), .text = "Reset Write Pointers" },
+	{ .mask = (1 << 5), .text = "Vendor Specific Erase" },
 };
 
 struct sedcli_options {
@@ -507,6 +525,65 @@ static void print_opalv200_ruby_feat(struct sed_opalv200_supported_feat *header)
 	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", header->revert_pin);
 }
 
+static void print_pyrite_header(char *version)
+{
+	sedcli_printf(LOG_INFO, "\nSED Pyrite %s FEATURES SUPPORTED\n", version);
+	sedcli_printf(LOG_INFO, "-------------------------------------\n");
+}
+
+static void print_pyrite_feat(struct sed_pyrite_supported_feat *pyrite_feat)
+{
+	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(pyrite_feat->base_comid));
+	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(pyrite_feat->comid_num));
+	sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", pyrite_feat->init_pin);
+	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", pyrite_feat->revert_pin);
+}
+
+static void print_data_rm_mechanism_feat(struct sed_data_rm_mechanism_feat *data_rm_feat)
+{
+	char line[255];
+	int i, cnt, curr_fmt, size, off;
+	uint8_t val, fmt;
+
+	sedcli_printf(LOG_INFO, "\nData Removal Mechanism FEATURES SUPPORTED\n");
+	sedcli_printf(LOG_INFO, "-------------------------------------------\n");
+
+	sedcli_printf(LOG_INFO, "\tData Removal Operation Processing     : %s\n",
+		      data_rm_feat->rmopprocessing_rsvd.rm_op_processing ? "Revert or RevertSP" : "Other");
+
+	sedcli_printf(LOG_INFO, "\tSupported Data Removal Mechanisms:\n");
+
+	val = data_rm_feat->supp_data_rm_mechanism;
+	fmt = data_rm_feat->datarmtimefmtbits_rsvd.data_rm_time_fmt;
+	cnt = 1;
+	for (i = 0; i < ARRAY_SIZE(map); i++) {
+		if (val & map[i].mask) {
+			off = 0;
+			size = ARRAY_SIZE(line);
+			curr_fmt = fmt & map[i].mask;
+
+			/* Clear line buffer first and then start appending
+			 * until we have full line*/
+			memset(line, 0, sizeof(line));
+			off += snprintf(&line[off], size - off, "\t%d. %s: ", cnt, map[i].text);
+
+			if (data_rm_feat->data_rm_time[i] == 0) {
+				off += snprintf(&line[off], size - off, "Not reported\n");
+			} else if (data_rm_feat->data_rm_time[i] < 65535) {
+				off += snprintf(&line[off], size - off, "%d %s\n",
+						data_rm_feat->data_rm_time[i] * 2,
+						curr_fmt ? "minutes" : "seconds");
+			} else {
+				off += snprintf(&line[off], size - off, "> 131068 %s\n",
+						curr_fmt ? "minutes" : "seconds");
+			}
+
+			sedcli_printf(LOG_INFO, "%s", line);
+			cnt++;
+		}
+	}
+}
+
 static void print_blocksid_feat(struct sed_blocksid_supported_feat *blocksid)
 {
 	sedcli_printf(LOG_INFO, "\nBlock SID FEATURES SUPPORTED\n");
@@ -557,6 +634,10 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 		comid = be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid);
 	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
 		comid = be16toh(discv->sed_lvl0_discv.sed_ruby.base_comid);
+	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev200) {
+		comid = be16toh(discv->sed_lvl0_discv.sed_pyritev200.base_comid);
+	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev100) {
+		comid = be16toh(discv->sed_lvl0_discv.sed_pyritev100.base_comid);
 	}
 
 	if (!comid) {
@@ -578,14 +659,26 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 		print_opalv200_header();
 		print_opalv200_ruby_feat(&discv->sed_lvl0_discv.sed_opalv200);
 	}
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_blocksid)
-		print_blocksid_feat(&discv->sed_lvl0_discv.sed_blocksid);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_cnl)
-		print_cnl_feat(&discv->sed_lvl0_discv.sed_cnl);
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev100) {
+		print_pyrite_header(PYRITE_V100);
+		print_pyrite_feat(&discv->sed_lvl0_discv.sed_pyritev100);
+	}
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev200) {
+		print_pyrite_header(PYRITE_V200);
+		print_pyrite_feat(&discv->sed_lvl0_discv.sed_pyritev200);
+	}
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_data_rm_mechanism) {
+		print_data_rm_mechanism_feat(&discv->sed_lvl0_discv.sed_data_rm_mechanism);
+	}
 	if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
 		print_ruby_header();
 		print_opalv200_ruby_feat(&discv->sed_lvl0_discv.sed_ruby);
 	}
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_blocksid)
+		print_blocksid_feat(&discv->sed_lvl0_discv.sed_blocksid);
+	if (discv->sed_lvl0_discv.feat_avail_flag.feat_cnl)
+		print_cnl_feat(&discv->sed_lvl0_discv.sed_cnl);
+
 	print_tper_properties(&discv->sed_tper_props);
 
 	sedcli_printf(LOG_INFO, "\n");

@@ -99,6 +99,30 @@ struct sed_opalv200_supported_feat {
 	uint8_t reserved2[5];
 } __attribute__((__packed__));
 
+struct sed_pyrite_supported_feat {
+	uint16_t base_comid;
+	uint16_t comid_num;
+	uint8_t reserved[5];
+	uint8_t init_pin;
+	uint8_t revert_pin;
+	uint8_t reserved2[5];
+} __attribute__((__packed__));
+
+struct sed_data_rm_mechanism_feat {
+	uint8_t reserved;
+	struct {
+		uint8_t rm_op_processing:1;
+		uint8_t rsvd1:7;
+	} __attribute__((__packed__)) rmopprocessing_rsvd;
+	uint8_t supp_data_rm_mechanism;
+	struct {
+		uint8_t data_rm_time_fmt:6;
+		uint8_t rsvd2:2;
+	} __attribute__((__packed__)) datarmtimefmtbits_rsvd;
+	uint16_t data_rm_time[6];
+	uint8_t reserved2[16];
+} __attribute__((__packed__));
+
 struct sed_tper_properties {
 	struct {
 		char key_name[MAX_PROP_NAME_LEN];
@@ -136,10 +160,13 @@ struct sed_opal_level0_discovery {
 		uint64_t feat_opalv100:1;
 		uint64_t feat_opalv200:1;
 		uint64_t feat_ruby:1;
+		uint64_t feat_pyritev100:1;
+		uint64_t feat_pyritev200:1;
+		uint64_t feat_data_rm_mechanism:1;
 		uint64_t feat_blocksid:1;
 		uint64_t feat_sum:1;
 		uint64_t feat_cnl:1;
-		uint64_t reserved:54;
+		uint64_t reserved:51;
 	} __attribute__((__packed__)) feat_avail_flag;
 
 	struct sed_tper_supported_feat sed_tper;
@@ -149,6 +176,9 @@ struct sed_opal_level0_discovery {
 	struct sed_opalv100_supported_feat sed_opalv100;
 	struct sed_opalv200_supported_feat sed_opalv200;
 	struct sed_opalv200_supported_feat sed_ruby;
+	struct sed_pyrite_supported_feat sed_pyritev100;
+	struct sed_pyrite_supported_feat sed_pyritev200;
+	struct sed_data_rm_mechanism_feat sed_data_rm_mechanism;
 	struct sed_blocksid_supported_feat sed_blocksid;
 	struct sed_cnl_feat sed_cnl;
 };
