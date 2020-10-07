@@ -30,9 +30,12 @@
 #define OPAL_FEAT_SUM        0x0201
 #define OPAL_FEAT_OPALV100   0x0200
 #define OPAL_FEAT_OPALV200   0x0203
+#define OPAL_FEAT_PYRITEV100 0x0302
+#define OPAL_FEAT_PYRITEV200 0x0303
 #define OPAL_FEAT_RUBY       0x0304
 #define OPAL_FEAT_BLOCKSID   0x0402
 #define OPAL_FEAT_CNL        0x0403
+#define OPAL_FEAT_DATA_RM    0x0404
 
 #define SUM_SELECTION_LIST   0x060000
 
@@ -258,6 +261,20 @@ static void cpy_opal_ruby_feat(struct sed_opalv200_supported_feat *header_to,
 	memcpy(header_to, header_from, sizeof(*header_to));
 }
 
+static void cpy_pyrite_feat(struct sed_pyrite_supported_feat *pyrite_feat,
+				void *feat)
+{
+	memcpy(pyrite_feat, (struct pyrite_supported_feat *) feat,
+			    sizeof(*pyrite_feat));
+}
+
+static void cpy_data_rm_mechanism_feat(struct sed_data_rm_mechanism_feat *data_rm_feat,
+				void *feat)
+{
+	memcpy(data_rm_feat, (struct data_rm_mechanism_feat *) feat,
+			     sizeof(*data_rm_feat));
+}
+
 static void cpy_cnl_feat(struct sed_opal_level0_discovery *discv, void *feat)
 {
 	memcpy(&discv->sed_cnl, (struct cnl_feat *) feat,
@@ -386,6 +403,38 @@ static int opal_level0_disc_pt(struct sed_device *device)
 			curr_feat->feat.ruby.base_comid = be16toh(
 					desc->feat.ruby.base_comid);
 			disc_data->comid = curr_feat->feat.ruby.base_comid;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_PYRITEV100:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+			cpy_pyrite_feat(&discv->sed_pyritev100, &desc->feat.pyritev100);
+			discv->feat_avail_flag.feat_pyritev100 = 1;
+
+			curr_feat->feat.pyritev100.base_comid =
+				be16toh(desc->feat.pyritev100.base_comid);
+			disc_data->comid = curr_feat->feat.pyritev100.base_comid;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_PYRITEV200:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+			cpy_pyrite_feat(&discv->sed_pyritev200, &desc->feat.pyritev200);
+			discv->feat_avail_flag.feat_pyritev200 = 1;
+
+			curr_feat->feat.pyritev200.base_comid =
+				be16toh(desc->feat.pyritev200.base_comid);
+			disc_data->comid = curr_feat->feat.pyritev200.base_comid;
+
+			feat_no++;
+			break;
+		case OPAL_FEAT_DATA_RM:
+			curr_feat = &disc_data->feats[feat_no];
+			curr_feat->type = feat_code;
+			cpy_data_rm_mechanism_feat(&discv->sed_data_rm_mechanism, &desc->feat.data_rm_mechanism);
+			discv->feat_avail_flag.feat_data_rm_mechanism = 1;
 
 			feat_no++;
 			break;
