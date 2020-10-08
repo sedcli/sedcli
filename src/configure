@@ -36,7 +36,13 @@ function print_status() {
 function test_compile() {
 	echo "Compiling test case $1" >> config.log
 
-	$cc $2 $3 -o $TMP_BIN $TMP_SRC >> config.log 2>&1 || return $?
+	if [ "$4" != "" ]; then
+		src=$4
+	else
+		src=$TMP_SRC
+	fi
+
+	$cc $2 $3 -o $TMP_BIN $src >> config.log 2>&1 || return $?
 }
 
 function generate_version() {
@@ -147,32 +153,12 @@ fi
 
 # ==========================================
 # Handle Opal driver discovery
-cat > $TMP_SRC <<EOF
-#include <linux/sed-opal.h>
-#include <sys/ioctl.h>
-int main(void)
-{
-	int ioctl_code = IOC_OPAL_SAVE;
-	return 0;
-}
-EOF
 
-if test_compile "sed interface"; then
+if test_compile "sed interface" "-I./lib/include -c" "" "./lib/sed_ioctl.c"; then
 	print_status "SED interface(s)" "NVMe-PT, opal-driver"
 	app_config_mk "CONFIG_OPAL_DRIVER=y"
 	app_config_h "#define CONFIG_OPAL_DRIVER"
-cat > $TMP_SRC <<EOF
-#include <linux/sed-opal.h>
-#include <sys/ioctl.h>
-int main(void)
-{
-	int ioctl_code = IOC_OPAL_PSID_REVERT_TPR;
-	return 0;
-}
-EOF
-	if test_compile "Opal PSID revert"; then
-		app_config_h "#define CONFIG_OPAL_DRIVER_PSID_REVERT"
-	fi
+	app_config_h "#define CONFIG_OPAL_DRIVER_PSID_REVERT"
 else
 	print_status "SED interface(s)" "NVMe-PT (opal-driver not available)"
 fi
