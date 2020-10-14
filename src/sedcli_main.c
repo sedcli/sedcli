@@ -105,7 +105,7 @@ static cli_option write_mbr_opts[] = {
 
 static cli_option blocksid_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
-	{'r', "hwreset", "Clear events by setting Hardware Reset flag. Allowed values: 1/0", 1, "FMT", CLI_OPTION_RANGE_INT, 0, 1, 0},
+	{'r', "hwreset", "Clear events by setting Hardware Reset flag. Allowed values: 1/0", 1, "FMT", CLI_OPTION_REQUIRED},
 	{0}
 };
 
@@ -431,7 +431,10 @@ int blocksid_handle_opts(char *opt, char **arg)
 
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
-	} else if (!strcmp(opt, "hwreset")) {
+	} else if (!strcmp(opt, "hwreset") && strlen(arg[0]) == 1) {
+		if ((arg[0][0] != '0') && (arg[0][0] != '1')) {
+			return -EINVAL;
+		}
 		hwreset_flag = atoi(arg[0]);
 		opts->hardware_reset = (hwreset_flag == 1) ? true : false;
 	}
