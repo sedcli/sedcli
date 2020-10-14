@@ -2505,10 +2505,10 @@ int opal_block_sid_pt(struct sed_device *dev, bool hw_reset)
 	struct opal_device *device = dev->priv;
 	int ret;
 
-	/* Send Block SID authentication command, no IF_RECV response is expected */
-
-	/* Set Hardware Reset in LSB of the first byte in
-	 * BlockSID payload based on Clear Event flag user
+	/* Send Block SID authentication command, no
+	 * IF_RECV response is expected. Set Hardware
+	 * Reset in LSB of the first byte in BlockSID
+	 * payload based on Clear Event flag user
 	 * supplied through hwreset argument */
 
 	*(device->req_buf) = hw_reset ? 1 : 0;
