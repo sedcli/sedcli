@@ -44,11 +44,11 @@ static int send_recv_nvme_pt_ioctl(int fd, int send, uint8_t proto_id,
 	return status;
 }
 
-static int opal_send(int fd, uint16_t com_id, uint8_t *buf, int buf_len)
+int opal_send(int fd, uint8_t proto_id, uint16_t com_id, uint8_t *buf, int buf_len)
 {
 	int ret;
 
-	ret = send_recv_nvme_pt_ioctl(fd, SEND, TCG_SECP_01, com_id, buf,
+	ret = send_recv_nvme_pt_ioctl(fd, SEND, proto_id, com_id, buf,
 			buf_len);
 
 	return ret;
@@ -89,7 +89,7 @@ int opal_send_recv(int fd, uint16_t com_id, uint8_t *req_buf,
 {
 	int ret;
 
-	ret = opal_send(fd, com_id, req_buf, req_buf_len);
+	ret = opal_send(fd, TCG_SECP_01, com_id, req_buf, req_buf_len);
 	if (ret)
 		return ret;
 

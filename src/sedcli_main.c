@@ -39,6 +39,7 @@ static int setup_global_range_handle_opts(char *opt, char **arg);
 static int setpw_handle_opts(char *opt, char **arg);
 static int mbr_control_handle_opts(char *opt, char **arg);
 static int write_mbr_handle_opts(char *opt, char **arg);
+static int blocksid_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -51,6 +52,7 @@ static int handle_setup_global_range(void);
 static int handle_setpw(void);
 static int handle_mbr_control(void);
 static int handle_write_mbr(void);
+static int handle_blocksid(void);
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -102,6 +104,12 @@ static cli_option write_mbr_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'f', "file", "File path containing Pre-boot Application(PBA) image ", 1, "FMT", CLI_OPTION_REQUIRED},
 	{'o', "offset", "Enter the offset(by default 0)", 1, "NUM", CLI_OPTION_OPTIONAL_ARG},
+	{0}
+};
+
+static cli_option blocksid_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'r', "hwreset", "Clear events by setting Hardware Reset flag. Allowed values: 1/0", 1, "FMT", CLI_OPTION_REQUIRED},
 	{0}
 };
 
@@ -207,6 +215,17 @@ static cli_command sedcli_commands[] = {
 		.help = NULL
 	},
 	{
+		.name = "block_sid",
+		.short_name = 'B',
+		.desc = "Issue BlockSID authentication command",
+		.long_desc = "Issue BlockSID authentication command",
+		.options = blocksid_opts,
+		.command_handle_opts = blocksid_handle_opts,
+		.handle = handle_blocksid,
+		.flags = 0,
+		.help = NULL
+	},
+	{
 		.name = "version",
 		.short_name = 'V',
 		.desc = "Print sedcli version",
@@ -257,6 +276,7 @@ struct sedcli_options {
 	int enable;
 	int done;
 	int offset;
+	bool hardware_reset;
 	int non_destructive;
 };
 
@@ -417,6 +437,24 @@ int write_mbr_handle_opts(char *opt, char **arg)
 			return -EINVAL;
 		}
 		offset_flag = true;
+	}
+
+	return 0;
+}
+
+int blocksid_handle_opts(char *opt, char **arg)
+{
+	/* No reset BlockSID upon power events */
+	int hwreset_flag = 0;
+
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "hwreset") && strlen(arg[0]) == 1) {
+		if ((arg[0][0] != '0') && (arg[0][0] != '1')) {
+			return -EINVAL;
+		}
+		hwreset_flag = atoi(arg[0]);
+		opts->hardware_reset = (hwreset_flag == 1) ? true : false;
 	}
 
 	return 0;
@@ -1092,6 +1130,25 @@ close_fd:
 	close(mbr_fd);
 init_deinit:
 	sed_deinit(dev);
+	return ret;
+}
+
+static int handle_blocksid(void)
+{
+	struct sed_device *dev = NULL;
+	int ret = sed_init(&dev, opts->dev_path);
+
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
+				opts->dev_path);
+		return ret;
+	}
+
+	ret = sed_issue_blocksid_cmd(dev, opts->hardware_reset);
+
+	print_sed_status(ret);
+	sed_deinit(dev);
+
 	return ret;
 }
 

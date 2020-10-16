@@ -353,6 +353,12 @@ int sed_mbrdone(struct sed_device *dev, const struct sed_key *key, bool mbr);
 int sed_write_shadow_mbr(struct sed_device *dev, const struct sed_key *key,
 			  const uint8_t *from, uint32_t size, uint32_t offset);
 
+
+/**
+ *
+ */
+int sed_issue_blocksid_cmd(struct sed_device *dev, bool hw_reset);
+
 /**
  *
  */
