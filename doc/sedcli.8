@@ -94,6 +94,18 @@ MBR shadow should be enabled for the PBA to take effect.
 .IP "\fB\-B -d <device> -r {1|0}\fR or \fB\-\-block_sid --device <device> --hwreset {1|0}\fR"
 Issue BlockSID authentication command with Clear Event flag via --hwreset option.
 
+.IP "\fB\-U -d <device> -u <userN> -t <accesstype> [-l <locking-range>]\fR or \fB\-\-add-user-to-lr --device <device> --user <userN> --accesstype {RO|RW|LK} [--locking-range <locking-range>]\fR"
+.IP
+Add users to the Locking Ranges with the following access modes:
+.IP
+1. Read-Only(RO) - user can only read the data from the disk.
+.IP
+2. Read-Write(RW) - user can read/write data from/to the disk.
+.IP
+3. Locked(LK) - data is locked, user can NOT read/write data from/to the disk.
+.IP
+With a max. of 9 Locking Ranges available on a device, the value of N ranges from 1 to 9.
+
 .IP "\fB\-V\fR or \fB\-\-version\fR"
 Prints version of sedcli.
 

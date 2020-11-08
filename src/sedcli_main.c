@@ -40,6 +40,7 @@ static int setpw_handle_opts(char *opt, char **arg);
 static int mbr_control_handle_opts(char *opt, char **arg);
 static int write_mbr_handle_opts(char *opt, char **arg);
 static int blocksid_handle_opts(char *opt, char **arg);
+static int add_user_lr_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -53,6 +54,7 @@ static int handle_setpw(void);
 static int handle_mbr_control(void);
 static int handle_write_mbr(void);
 static int handle_blocksid(void);
+static int handle_add_user_lr(void);
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
@@ -110,6 +112,14 @@ static cli_option write_mbr_opts[] = {
 static cli_option blocksid_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'r', "hwreset", "Clear events by setting Hardware Reset flag. Allowed values: 1/0", 1, "FMT", CLI_OPTION_REQUIRED},
+	{0}
+};
+
+static cli_option add_user_lr_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	{'u', "user", "String specifying the user to be added to the LR {userN, N=[1..9]}", 1, "FMT", CLI_OPTION_REQUIRED},
+	{'t', "accesstype", "String specifying access type to the data on drive. Allowed values: RO/RW/LK", 1, "FMT", CLI_OPTION_REQUIRED},
+	{'l', "locking-range", "Locking Range {1..9}", 1, "NUM", CLI_OPTION_OPTIONAL_ARG},
 	{0}
 };
 
@@ -226,6 +236,17 @@ static cli_command sedcli_commands[] = {
 		.help = NULL
 	},
 	{
+		.name = "add-user-to-lr",
+		.short_name = 'U',
+		.desc = "Add users to the Locking Ranges",
+		.long_desc = "Add users to the Locking Ranges",
+		.options = add_user_lr_opts,
+		.command_handle_opts = add_user_lr_handle_opts,
+		.handle = handle_add_user_lr,
+		.flags = 0,
+		.help = NULL
+	},
+	{
 		.name = "version",
 		.short_name = 'V',
 		.desc = "Print sedcli version",
@@ -278,6 +299,8 @@ struct sedcli_options {
 	int offset;
 	bool hardware_reset;
 	int non_destructive;
+	uint8_t lr;
+	char user[7]; /* User{1..9} or Admin1 */
 };
 
 static struct sedcli_options *opts = NULL;
@@ -455,6 +478,32 @@ int blocksid_handle_opts(char *opt, char **arg)
 		}
 		hwreset_flag = atoi(arg[0]);
 		opts->hardware_reset = (hwreset_flag == 1) ? true : false;
+	}
+
+	return 0;
+}
+
+int add_user_lr_handle_opts(char *opt, char **arg)
+{
+	char *error;
+
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if (!strcmp(opt, "user")) {
+		strncpy(opts->user, arg[0], 7);
+	} else if(!strcmp(opt, "accesstype")) {
+		opts->lock_type = get_lock_type(arg[0]);
+		if (opts->lock_type == -1) {
+			sedcli_printf(LOG_ERR, "Incorrect lock type\n");
+			return -EINVAL;
+		}
+	} else if(!strcmp(opt, "locking-range")) {
+		opts->lr = strtoul(arg[0], &error, 10);
+		if (error == arg[0]) {
+			sedcli_printf(LOG_ERR,
+				      "Failed to parse the Locking Range provided\n");
+			return -EINVAL;
+		}
 	}
 
 	return 0;
@@ -1147,6 +1196,37 @@ static int handle_blocksid(void)
 	ret = sed_issue_blocksid_cmd(dev, opts->hardware_reset);
 
 	print_sed_status(ret);
+	sed_deinit(dev);
+
+	return ret;
+}
+
+static int handle_add_user_lr(void)
+{
+	struct sed_device *dev = NULL;
+	int ret;
+
+	ret = sed_init(&dev, opts->dev_path);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error initializing the device: %s\n",
+				opts->dev_path);
+		return ret;
+	}
+
+	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
+
+	ret = get_password((char *) opts->pwd.key, &opts->pwd.len,
+			SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		return ret;
+	}
+
+	ret = sed_addusertolr(dev, &opts->pwd, opts->user, opts->lock_type,
+			opts->lr);
+
+	print_sed_status(ret);
+
 	sed_deinit(dev);
 
 	return ret;
