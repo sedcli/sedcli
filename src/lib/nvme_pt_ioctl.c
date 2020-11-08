@@ -2119,15 +2119,14 @@ int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key, bool ke
 	return ret;
 }
 
-int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
-		const char *usr, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
+int opal_add_usr_to_lr_pt(struct sed_device *dev, const struct sed_key *key,
+			const char *usr, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
-	struct sed_key disk_key;
 	int ret = 0;
 	struct opal_device *opal_dev;
 	uint32_t who, lk_type = lock_type;
 
-	if (lk_type > SED_NO_ACCESS || key == NULL || key_len == 0 || usr == NULL) {
+	if (lk_type > SED_NO_ACCESS || key == NULL || usr == NULL) {
 		SEDCLI_DEBUG_MSG("Need to supply user, lock type and password!\n");
 		return -EINVAL;
 	}
@@ -2137,12 +2136,7 @@ int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_l
 		return -EINVAL;
 	}
 
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret)
 		goto end_sessn;
 

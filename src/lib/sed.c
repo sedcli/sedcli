@@ -27,7 +27,7 @@ typedef int (*activate_lsp)(struct sed_device *, const struct sed_key *,
 			char *, bool);
 typedef int (*revertsp)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*setup_global_range)(struct sed_device *, const struct sed_key *);
-typedef int (*add_usr_to_lr)(struct sed_device *, const char *, uint8_t,
+typedef int (*add_usr_to_lr)(struct sed_device *, const struct sed_key *,
 			const char *, enum SED_ACCESS_TYPE, uint8_t);
 typedef int (*activate_usr)(struct sed_device *, const char *, uint8_t,
 			const char *);
@@ -275,10 +275,10 @@ int sed_lock_unlock(struct sed_device *dev, const struct sed_key *key,
 	return curr_if->lock_unlock_fn(dev, key, lock_type);
 }
 
-int sed_addusertolr(struct sed_device *dev, const char *pass, uint8_t key_len,
+int sed_addusertolr(struct sed_device *dev, const struct sed_key *key,
 		    const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
-	return curr_if->addusr_to_lr_fn(dev, pass, key_len, user, lock_type, lr);
+	return curr_if->addusr_to_lr_fn(dev, key, user, lock_type, lr);
 }
 
 int sed_enableuser(struct sed_device *dev, const char *pass, uint8_t key_len,

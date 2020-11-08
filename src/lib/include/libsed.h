@@ -362,6 +362,12 @@ int sed_issue_blocksid_cmd(struct sed_device *dev, bool hw_reset);
 /**
  *
  */
+int sed_addusertolr(struct sed_device *dev, const struct sed_key *key,
+		const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr);
+
+/**
+ *
+ */
 const char *sed_error_text(int sed_status);
 
 

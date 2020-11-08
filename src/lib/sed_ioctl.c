@@ -207,19 +207,18 @@ int sedopal_setuplr(struct sed_device *dev, const char *password, uint8_t key_le
 }
 
 
-int sedopal_add_usr_to_lr(struct sed_device *dev, const char *key, uint8_t key_len,
+int sedopal_add_usr_to_lr(struct sed_device *dev, const struct sed_key *key,
 			const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
-	struct sed_key disk_key;
 	int ret;
+	uint32_t who;
 
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
+	ret = sed_get_user(user, &who);
+	if (ret)
 		return ret;
-	}
 
-	return do_generic_lkul(dev->fd, &disk_key, SED_ADMIN1, lock_type, lr,
-				false, IOC_OPAL_ADD_USR_TO_LR);
+	return do_generic_lkul(dev->fd, key, who, lock_type, lr, false,
+				IOC_OPAL_ADD_USR_TO_LR);
 }
 
 int sedopal_mbrdone(struct sed_device *dev, const struct sed_key *key,
