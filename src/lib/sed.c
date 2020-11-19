@@ -132,32 +132,27 @@ static struct opal_interface nvmept_if = {
 
 static struct opal_interface *curr_if = &nvmept_if;
 
-struct sed_status_ret {
-	int code;
-	const char *text;
-};
-
-struct sed_status_ret sed_statuses[] = {
-	{ .code = SED_SUCCESS, .text = "Success" },
-	{ .code = SED_NOT_AUTHORIZED, .text = "Not Authorized" },
-	{ .code = SED_UNKNOWN_ERROR, .text = "Unknown Error" },
-	{ .code = SED_SP_BUSY, .text = "SP Busy" },
-	{ .code = SED_SP_FAILED, .text = "SP Failed" },
-	{ .code = SED_SP_DISABLED, .text = "SP Disabled" },
-	{ .code = SED_SP_FROZEN, .text = "SP Frozen" },
-	{ .code = SED_NO_SESSIONS_AVAILABLE, .text = "No Sessions Available" },
-	{ .code = SED_UNIQUENESS_CONFLICT, .text = "Uniqueness Conflict" },
-	{ .code = SED_INSUFFICIENT_SPACE, .text = "Insufficient Space" },
-	{ .code = SED_INSUFFICIENT_ROWS, .text = "Insufficient Rows" },
-	{ .code = SED_INVALID_FUNCTION, .text = "Invalid Function" },
-	{ .code = SED_INVALID_PARAMETER, .text = "Invalid Parameter" },
-	{ .code = SED_INVALID_REFERENCE, .text = "Invalid Reference" },
-	{ .code = SED_UNKNOWN_ERROR_1, .text = "Unknown Error" },
-	{ .code = SED_TPER_MALFUNCTION, .text = "TPER Malfunction" },
-	{ .code = SED_TRANSACTION_FAILURE, .text = "Transaction Failure" },
-	{ .code = SED_RESPONSE_OVERFLOW, .text = "Response Overflow" },
-	{ .code = SED_AUTHORITY_LOCKED_OUT, .text = "Authority Locked Out" },
-	{ .code = SED_FAIL, .text = "Failed" },
+static const char *sed_statuses[] = {
+	[SED_SUCCESS] = "Success",
+	[SED_NOT_AUTHORIZED] = "Not Authorized",
+	[SED_UNKNOWN_ERROR] = "Unknown Error",
+	[SED_SP_BUSY] = "SP Busy",
+	[SED_SP_FAILED] = "SP Failed",
+	[SED_SP_DISABLED] = "SP Disabled",
+	[SED_SP_FROZEN] = "SP Frozen",
+	[SED_NO_SESSIONS_AVAILABLE] = "No Sessions Available",
+	[SED_UNIQUENESS_CONFLICT] = "Uniqueness Conflict",
+	[SED_INSUFFICIENT_SPACE] = "Insufficient Space",
+	[SED_INSUFFICIENT_ROWS] = "Insufficient Rows",
+	[SED_INVALID_FUNCTION] = "Invalid Function",
+	[SED_INVALID_PARAMETER] = "Invalid Parameter",
+	[SED_INVALID_REFERENCE] = "Invalid Reference",
+	[SED_UNKNOWN_ERROR_1] = "Unknown Error",
+	[SED_TPER_MALFUNCTION] = "TPER Malfunction",
+	[SED_TRANSACTION_FAILURE] = "Transaction Failure",
+	[SED_RESPONSE_OVERFLOW] = "Response Overflow",
+	[SED_AUTHORITY_LOCKED_OUT] = "Authority Locked Out",
+	[SED_FAIL] = "Failed",
 };
 
 int sed_init(struct sed_device **dev, const char *dev_path)
@@ -383,9 +378,9 @@ int sed_issue_blocksid_cmd(struct sed_device *dev, bool hw_reset)
 
 const char *sed_error_text(int sed_status)
 {
-	if ((sed_status > SED_AUTHORITY_LOCKED_OUT && sed_status != SED_FAIL) || sed_status < 0) {
+	if (sed_status < SED_SUCCESS || sed_status > SED_FAIL) {
 		return NULL;
 	}
 
-	return sed_statuses[sed_status].text;
+	return sed_statuses[sed_status];
 }
