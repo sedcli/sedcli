@@ -1307,7 +1307,7 @@ static int add_usr_to_lr(int fd, struct opal_device *dev, uint32_t l_state, uint
 	memcpy(lr_buff, opal_uid[OPAL_LOCKINGRANGE_ACE_RDLOCKED_UID],
 			OPAL_UID_LENGTH);
 
-	if (l_state == OPAL_RW) {
+	if (l_state == OPAL_WR) {
 		memcpy(lr_buff, opal_uid[OPAL_LOCKINGRANGE_ACE_WRLOCKED_UID],
 				OPAL_UID_LENGTH);
 	}

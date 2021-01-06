@@ -66,10 +66,17 @@ enum opal_user {
 	OPAL_USER9 = 0x09,
 };
 
+/* The following enum are mapped to
+   Opal read and write locking state,
+   OPAL_RO requires both RL & RLE on a
+   locking range to be enabled in order
+   to be effective. OPAL_WR requires
+   both WL & WLE on a locking range to
+   be enabled in order to be effective */
+
 enum opal_lock_state {
 	OPAL_RO = 0x01, /* 0001 */
-	OPAL_RW = 0x02, /* 0010 */
-	OPAL_LK = 0x04, /* 0100 */
+	OPAL_WR = 0x02, /* 0010 */
 };
 
 struct opal_token {
