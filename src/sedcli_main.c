@@ -642,11 +642,11 @@ static void print_cnl_feat(struct sed_cnl_feat *cnl)
 	sedcli_printf(LOG_INFO, "\tNamespace Non-Global Range Locking objects           : %s\n",
 			cnl->ranges_rsvd.range_p ? "ONE or MORE" : "ZERO");
 	sedcli_printf(LOG_INFO, "\tMaximum Key Count                                    : %d\n",
-			cnl->max_key_count);
+			be32toh(cnl->max_key_count));
 	sedcli_printf(LOG_INFO, "\tUnused Key Count                                     : %d\n",
-			cnl->unused_key_count);
+			be32toh(cnl->unused_key_count));
 	sedcli_printf(LOG_INFO, "\tMaximum Ranges Per Namespace                         : %d (%#x)\n",
-			cnl->max_ranges_per_ns, cnl->max_ranges_per_ns);
+			be32toh(cnl->max_ranges_per_ns), be32toh(cnl->max_ranges_per_ns));
 }
 
 static void print_tper_properties(struct sed_tper_properties *tper)
