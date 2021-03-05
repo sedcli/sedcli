@@ -169,6 +169,7 @@ struct sed_opal_level0_discovery {
 		uint64_t reserved:51;
 	} __attribute__((__packed__)) feat_avail_flag;
 
+	uint16_t com_id;
 	struct sed_tper_supported_feat sed_tper;
 	struct sed_locking_supported_feat sed_locking;
 	struct sed_geometry_supported_feat sed_geo;
