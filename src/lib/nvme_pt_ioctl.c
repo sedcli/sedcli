@@ -219,117 +219,143 @@ static int get_opal_auth_uid(enum SED_AUTHORITY auth)
 static void copy_tper_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_tper, &feat->feat.tper.flags,
-			sizeof(feat->feat.tper.flags));
-	discv->feat_avail_flag.feat_tper = 1;
+	discv->tper_feat = feat->feat.tper.flags;
+
+	discv->features |= SED_L0DISC_TPER_DESC;
 }
 
 static void copy_locking_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_locking, &feat->feat.locking.flags,
-		sizeof(feat->feat.locking.flags));
+	discv->locking_feat = feat->feat.locking.flags;
 
-	discv->feat_avail_flag.feat_locking = 1;
+	discv->features |= SED_L0DISC_LOCKING_DESC;
 }
 
 static void copy_geometry_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_geo, &feat->feat.geo,
-		sizeof(feat->feat.geo));
+	discv->sed_geo.flags = feat->feat.geo.flags;
+	discv->sed_geo.alignmnt_granlrty = be64toh(feat->feat.geo.alignmnt_granlrty);
+	discv->sed_geo.logical_blk_sz = be32toh(feat->feat.geo.logical_blk_sz);
+	discv->sed_geo.lowest_aligned_lba = be64toh(feat->feat.geo.lowest_aligned_lba);
 
-	discv->feat_avail_flag.feat_geometry = 1;
+	discv->features |= SED_L0DISC_GEOMETRY_DESC;
 }
 
 static void copy_datastr_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
+	discv->sed_datastr.datastr_tbl_size_align = be32toh(feat->feat.datastr.datastr_tbl.datastr_tbl_size_align);
+	discv->sed_datastr.max_num_datastr_tbls = be16toh(feat->feat.datastr.datastr_tbl.max_num_datastr_tbls);
+	discv->sed_datastr.max_total_size_datstr_tbls = be32toh(feat->feat.datastr.datastr_tbl.max_total_size_datstr_tbls);
 
-	memcpy(&discv->sed_datastr, &feat->feat.datastr.datastr_tbl,
-		sizeof(feat->feat.datastr.datastr_tbl));
-
-	discv->feat_avail_flag.feat_datastr_table = 1;
+	discv->features |= SED_L0DISC_DATASTORE_DESC;
 }
 
 static void copy_sum_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	discv->feat_avail_flag.feat_sum = 1;
+	discv->features |= SED_L0DISC_SUM_DESC;
 }
 
 static void copy_opalv100_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_opalv100, &feat->feat.opalv100,
-		sizeof(feat->feat.opalv100));
+	discv->sed_opalv100.v1_base_comid = be16toh(feat->feat.opalv100.v1_base_comid);
+	discv->sed_opalv100.v1_comid_num = be16toh(feat->feat.opalv100.v1_comid_num);
 
-	discv->feat_avail_flag.feat_opalv100 = 1;
+	discv->features |= SED_L0DISC_OPALV100_DESC;
 }
 
 static void copy_opalv200_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_opalv200, &feat->feat.opalv200,
-		sizeof(feat->feat.opalv200));
+	discv->sed_opalv200.base_comid = be16toh(feat->feat.opalv200.base_comid);
+	discv->sed_opalv200.comid_num = be16toh(feat->feat.opalv200.comid_num);
+	discv->sed_opalv200.admin_lp_auth_num = be16toh(feat->feat.opalv200.admin_lp_auth_num);
+	discv->sed_opalv200.user_lp_auth_num = be16toh(feat->feat.opalv200.user_lp_auth_num);
+	discv->sed_opalv200.init_pin = feat->feat.opalv200.init_pin;
+	discv->sed_opalv200.revert_pin = feat->feat.opalv200.revert_pin;
+	discv->sed_opalv200.flags = feat->feat.opalv200.flags;
 
-	discv->com_id = be16toh(feat->feat.opalv200.base_comid);
-	discv->feat_avail_flag.feat_opalv200 = 1;
+	discv->com_id = discv->sed_opalv200.base_comid;
+	discv->features |= SED_L0DISC_OPALV200_DESC;
 }
 
 static void copy_pyritev100_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_pyritev100, &feat->feat.pyritev100,
-		sizeof(feat->feat.pyritev100));
+	discv->sed_pyritev100.base_comid = be16toh(feat->feat.pyritev100.base_comid);
+	discv->sed_pyritev100.comid_num = be16toh(feat->feat.pyritev100.comid_num);
+	discv->sed_pyritev100.init_pin = feat->feat.pyritev100.init_pin;
+	discv->sed_pyritev100.revert_pin = feat->feat.pyritev100.revert_pin;
 
-	discv->com_id = be16toh(feat->feat.pyritev100.base_comid);
-	discv->feat_avail_flag.feat_pyritev100 = 1;
+	discv->com_id = discv->sed_pyritev100.base_comid;
+	discv->features |= SED_L0DISC_PYRITEV100_DESC;
 }
 
 static void copy_pyritev200_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_pyritev200, &feat->feat.pyritev200,
-		sizeof(feat->feat.pyritev200));
+	discv->sed_pyritev200.base_comid = be16toh(feat->feat.pyritev200.base_comid);
+	discv->sed_pyritev200.comid_num = be16toh(feat->feat.pyritev200.comid_num);
+	discv->sed_pyritev200.init_pin = feat->feat.pyritev200.init_pin;
+	discv->sed_pyritev200.revert_pin = feat->feat.pyritev200.revert_pin;
 
-	discv->com_id = be16toh(feat->feat.pyritev200.base_comid);
-	discv->feat_avail_flag.feat_pyritev200 = 1;
+	discv->com_id = discv->sed_pyritev200.base_comid;
+	discv->features |= SED_L0DISC_PYRITEV200_DESC;
 }
 
 static void copy_ruby_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_ruby, &feat->feat.ruby, sizeof(feat->feat.ruby));
+	discv->sed_ruby.base_comid = be16toh(feat->feat.ruby.base_comid);
+	discv->sed_ruby.comid_num = be16toh(feat->feat.ruby.comid_num);
+	discv->sed_ruby.admin_lp_auth_num = be16toh(feat->feat.ruby.admin_lp_auth_num);
+	discv->sed_ruby.user_lp_auth_num = be16toh(feat->feat.ruby.user_lp_auth_num);
+	discv->sed_ruby.init_pin = feat->feat.ruby.init_pin;
+	discv->sed_ruby.revert_pin = feat->feat.ruby.revert_pin;
+	discv->sed_ruby.flags = feat->feat.ruby.flags;
 
 	discv->com_id = be16toh(feat->feat.ruby.base_comid);
-	discv->feat_avail_flag.feat_ruby = 1;
+	discv->features |= SED_L0DISC_RUBY_DESC;
 }
 
 static void copy_blocksid_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_blocksid, &feat->feat.blocksid,
-		sizeof(feat->feat.blocksid));
+	discv->sed_blocksid.flags1 = feat->feat.blocksid.flags1;
+	discv->sed_blocksid.flags2 = feat->feat.blocksid.flags2;
 
-	discv->feat_avail_flag.feat_blocksid = 1;
+	discv->features |= SED_L0DISC_BLOCKSID_DESC;
 }
 
 static void copy_data_rm_mechanism_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_data_rm_mechanism, &feat->feat.data_rm_mechanism,
-		sizeof(feat->feat.data_rm_mechanism));
+	int i = 0;
 
-	discv->feat_avail_flag.feat_data_rm_mechanism = 1;
+	discv->sed_data_rm_mechanism.flags = feat->feat.data_rm_mechanism.flags;
+	discv->sed_data_rm_mechanism.supp_data_rm_mechanism = feat->feat.data_rm_mechanism.supp_data_rm_mechanism;
+	discv->sed_data_rm_mechanism.time_formats = feat->feat.data_rm_mechanism.time_formats;
+
+	for (i = 0; i < 6; i++) {
+		discv->sed_data_rm_mechanism.data_rm_time[i] = feat->feat.data_rm_mechanism.data_rm_time[i];
+	}
+
+	discv->features |= SED_L0DISC_DATA_RM_DESC;
 }
 
 static void copy_cnl_feat(struct sed_opal_level0_discovery *discv,
 		struct opal_level0_feat_desc *feat)
 {
-	memcpy(&discv->sed_cnl, &feat->feat.cnl, sizeof(feat->feat.cnl));
+	discv->sed_cnl.flags = feat->feat.cnl.flags;
+	discv->sed_cnl.max_key_count = be32toh(feat->feat.cnl.max_key_count);
+	discv->sed_cnl.max_ranges_per_ns = be32toh(feat->feat.cnl.max_ranges_per_ns);
+	discv->sed_cnl.unused_key_count = be32toh(feat->feat.cnl.unused_key_count);
 
-	discv->feat_avail_flag.feat_cnl = 1;
+	discv->features |= SED_L0DISC_CNL_DESC;
 }
 
 typedef void (*copy)(struct sed_opal_level0_discovery *, struct opal_level0_feat_desc *);
@@ -370,10 +396,8 @@ static copy opal_get_copy_fn(int feat_code)
 
 static int opal_level0_disc_pt(struct sed_device *device)
 {
-	struct opal_l0_feat *curr_feat;
 	struct opal_level0_header *header;
 	struct opal_level0_feat_desc *desc;
-	struct opal_l0_disc *disc_data;
 	struct opal_device *dev = device->priv;
 	struct sed_opal_level0_discovery *discv = &device->discv.sed_lvl0_discv;
 	copy copy_fn;
@@ -392,15 +416,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 
 	buffer = dev->resp_buf;
 
-	disc_data = malloc(sizeof(*disc_data));
-	if (disc_data == NULL) {
-		SEDCLI_DEBUG_MSG("Error in creating memory for disc_data\n");
-		return -ENOMEM;
-	}
-	memset(disc_data, 0, sizeof(*disc_data));
-
 	header = (struct opal_level0_header *) buffer;
-	disc_data->rev = be32toh(header->rev);
 
 	/* processing level 0 features */
 	pos = 0;
@@ -417,17 +433,12 @@ static int opal_level0_disc_pt(struct sed_device *device)
 		copy_fn = opal_get_copy_fn(feat_code);
 
 		if (copy_fn != NULL) {
-			curr_feat = &disc_data->feats[feat_no];
-			curr_feat->type = feat_code;
 			copy_fn(discv, desc);
 			feat_no++;
 		}
 
 	}
-	disc_data->feats_size = feat_no;
 	dev->comid = discv->com_id;
-
-	free(disc_data);
 
 	return 0;
 }

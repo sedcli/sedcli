@@ -18,6 +18,55 @@
 #define MAX_PROP_NAME_LEN 32
 #define NUM_TPER_PROPS    23
 
+/* Level0 features */
+#define SED_L0DISC_TPER_DESC (1 << 0)
+#define SED_L0DISC_LOCKING_DESC (1 << 1)
+#define SED_L0DISC_GEOMETRY_DESC (1 << 2)
+#define SED_L0DISC_DATASTORE_DESC (1 << 3)
+#define SED_L0DISC_OPALV100_DESC (1 << 4)
+#define SED_L0DISC_OPALV200_DESC (1 << 5)
+#define SED_L0DISC_RUBY_DESC (1 << 6)
+#define SED_L0DISC_PYRITEV100_DESC (1 << 7)
+#define SED_L0DISC_PYRITEV200_DESC (1 << 8)
+#define SED_L0DISC_DATA_RM_DESC (1 << 9)
+#define SED_L0DISC_BLOCKSID_DESC (1 << 10)
+#define SED_L0DISC_SUM_DESC (1 << 11)
+#define SED_L0DISC_CNL_DESC (1 << 12)
+
+/* Level0 Tper Feature descriptor */
+#define SED_L0DISC_TPER_FEAT_SYNC (1 << 0)
+#define SED_L0DISC_TPER_FEAT_ASYNC (1 << 1)
+#define SED_L0DISC_TPER_FEAT_ACK_NAK (1 << 2)
+#define SED_L0DISC_TPER_FEAT_BUFFER_MGMT (1 << 3)
+#define SED_L0DISC_TPER_FEAT_STREAMING (1 << 4)
+#define SED_L0DISC_TPER_FEAT_COMID_MGMT (1 << 6)
+
+/* Level0 Locking Feature descriptor */
+#define SED_L0DISC_LOCKING_FEAT_SUPP (1 << 0)
+#define SED_L0DISC_LOCKING_FEAT_LOCKING_EN (1 << 1)
+#define SED_L0DISC_LOCKING_FEAT_LOCKED (1 << 2)
+#define SED_L0DISC_LOCKING_FEAT_MEDIA_ENC (1 << 3)
+#define SED_L0DISC_LOCKING_FEAT_MBR_EN (1 << 4)
+#define SED_L0DISC_LOCKING_FEAT_MBR_DONE (1 << 5)
+
+/* Level0 Geometry Reporting descriptor */
+#define SED_L0DISC_GEOM_ALIGN (1 << 0)
+
+/* Level0 Opalv200 and Ruby descriptor */
+#define SED_L0DISC_OPALV200_RUBY_FEAT_RANGE_CROSS (1 << 0)
+
+/* Level0 BlockSID descriptor */
+#define SED_L0DISC_BLOCKSID_FEAT1_SID_VALUE (1 << 0)
+#define SED_L0DISC_BLOCKSID_FEAT1_SID_AUTH_BLOCKED (1 << 1)
+#define SED_L0DISC_BLOCKSID_FEAT2_HW_RESET (1 << 0)
+
+/* Level0 Data removal mechanism descriptor */
+#define SED_L0DISC_DATARM_FEAT_REMOVAL_OP (1 << 0)
+
+/* Level0 Configurable Namespace Locking descriptor */
+#define SED_L0DISC_CNL_FEAT_RANGEP (1 << 6)
+#define SED_L0DISC_CNL_FEAT_RANGEC (1 << 7)
+
 enum SED_ACCESS_TYPE {
 	SED_RO_ACCESS = 1 << 0,
 	SED_RW_ACCESS = 1 << 1,
@@ -42,136 +91,75 @@ enum SED_AUTHORITY {
 
 struct sed_device;
 
-struct sed_tper_supported_feat {
-	uint8_t sync_supp :1;
-	uint8_t async_supp :1;
-	uint8_t ack_nak_supp :1;
-	uint8_t buff_mgmt_supp :1;
-	uint8_t stream_supp :1;
-	uint8_t reserved1 :1;
-	uint8_t comid_mgmt_supp :1;
-	uint8_t reserved2:1;
-} __attribute__((__packed__));
-
-struct sed_locking_supported_feat {
-	uint8_t locking_supp:1;
-	uint8_t locking_en:1;
-	uint8_t locked:1;
-	uint8_t media_enc:1;
-	uint8_t mbr_en:1;
-	uint8_t mbr_done:1;
-	uint8_t reserved:2;
-} __attribute__((__packed__));
-
 struct sed_geometry_supported_feat {
-	struct {
-		uint8_t align:1;
-		uint8_t rsvd1:7;
-	} __attribute__((__packed__)) rsvd_align;
-	uint8_t rsvd2[7];
+	uint32_t flags;
 	uint32_t logical_blk_sz;
 	uint64_t alignmnt_granlrty;
 	uint64_t lowest_aligned_lba;
-} __attribute__((__packed__));
+};
 
 struct sed_datastr_table_supported_feat {
 	uint16_t max_num_datastr_tbls;
 	uint32_t max_total_size_datstr_tbls;
 	uint32_t datastr_tbl_size_align;
-} __attribute__((__packed__));
+};
 
 struct sed_opalv100_supported_feat {
 	uint16_t v1_base_comid;
 	uint16_t v1_comid_num;
-} __attribute__((__packed__));
+};
 
 struct sed_opalv200_supported_feat {
 	uint16_t base_comid;
 	uint16_t comid_num;
-	struct {
-		uint8_t range_crossing:1;
-		uint8_t rsvd1:7;
-	} __attribute__((__packed__)) rangecross_rsvd;
+	uint8_t flags;
 	uint16_t admin_lp_auth_num;
 	uint16_t user_lp_auth_num;
 	uint8_t init_pin;
 	uint8_t revert_pin;
-	uint8_t reserved2[5];
-} __attribute__((__packed__));
+};
 
 struct sed_pyrite_supported_feat {
 	uint16_t base_comid;
 	uint16_t comid_num;
-	uint8_t reserved[5];
 	uint8_t init_pin;
 	uint8_t revert_pin;
-	uint8_t reserved2[5];
-} __attribute__((__packed__));
+};
 
 struct sed_data_rm_mechanism_feat {
 	uint8_t reserved;
-	struct {
-		uint8_t rm_op_processing:1;
-		uint8_t rsvd1:7;
-	} __attribute__((__packed__)) rmopprocessing_rsvd;
+	uint8_t flags;
 	uint8_t supp_data_rm_mechanism;
-	struct {
-		uint8_t data_rm_time_fmt:6;
-		uint8_t rsvd2:2;
-	} __attribute__((__packed__)) datarmtimefmtbits_rsvd;
+	uint8_t time_formats;
 	uint16_t data_rm_time[6];
-	uint8_t reserved2[16];
-} __attribute__((__packed__));
+};
 
 struct sed_tper_properties {
 	struct {
 		char key_name[MAX_PROP_NAME_LEN];
 		uint64_t value;
 	} property[NUM_TPER_PROPS];
-} __attribute__((__packed__));
+};
 
 struct sed_blocksid_supported_feat {
-	uint8_t sid_valuestate:1;
-	uint8_t sid_blockstate:1;
-	uint8_t reserved1:6;
-	uint8_t hardware_reset:1;
-	uint8_t reserved2:7;
-	uint8_t reserved3[10];
-} __attribute__((__packed__));
+	uint8_t flags1;
+	uint8_t flags2;
+};
 
 struct sed_cnl_feat {
-	struct {
-		uint8_t rsvd1:6;
-		uint8_t range_p:1;
-		uint8_t range_c:1;
-	} __attribute__((__packed__)) ranges_rsvd;
-	uint8_t rsvd2[3];
+	uint8_t flags;
 	uint32_t max_key_count;
 	uint32_t unused_key_count;
 	uint32_t max_ranges_per_ns;
-} __attribute__((__packed__));
+};
 
 struct sed_opal_level0_discovery {
-	struct {
-		uint64_t feat_tper:1;
-		uint64_t feat_locking:1;
-		uint64_t feat_geometry:1;
-		uint64_t feat_datastr_table:1;
-		uint64_t feat_opalv100:1;
-		uint64_t feat_opalv200:1;
-		uint64_t feat_ruby:1;
-		uint64_t feat_pyritev100:1;
-		uint64_t feat_pyritev200:1;
-		uint64_t feat_data_rm_mechanism:1;
-		uint64_t feat_blocksid:1;
-		uint64_t feat_sum:1;
-		uint64_t feat_cnl:1;
-		uint64_t reserved:51;
-	} __attribute__((__packed__)) feat_avail_flag;
-
 	uint16_t com_id;
-	struct sed_tper_supported_feat sed_tper;
-	struct sed_locking_supported_feat sed_locking;
+	/* this is a bit map containing info which descriptors are present*/
+	uint64_t features;
+
+	uint8_t tper_feat;
+	uint8_t locking_feat;
 	struct sed_geometry_supported_feat sed_geo;
 	struct sed_datastr_table_supported_feat sed_datastr;
 	struct sed_opalv100_supported_feat sed_opalv100;

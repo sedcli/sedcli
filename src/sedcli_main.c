@@ -484,30 +484,30 @@ static void print_sed_status(int status)
 	}
 }
 
-static void print_tper_feat(struct sed_tper_supported_feat *tper)
+static void print_tper_feat(uint8_t flags)
 {
 	sedcli_printf(LOG_INFO, "\nSED TPER FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "----------------------------\n");
 
-	sedcli_printf(LOG_INFO, "\tSync Supported        : %s\n", tper->sync_supp ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tAsync Supported       : %s\n", tper->async_supp ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tACK/NAK Supported     : %s\n", tper->ack_nak_supp ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tBuffer Mgmt Supported : %s\n", tper->buff_mgmt_supp ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tStreaming Supported   : %s\n", tper->stream_supp ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tComID Mgmt Supported  : %s\n", tper->comid_mgmt_supp ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tSync Supported        : %s\n", (flags & SED_L0DISC_TPER_FEAT_SYNC) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tAsync Supported       : %s\n", (flags & SED_L0DISC_TPER_FEAT_ASYNC) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tACK/NAK Supported     : %s\n", (flags & SED_L0DISC_TPER_FEAT_ACK_NAK) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tBuffer Mgmt Supported : %s\n", (flags & SED_L0DISC_TPER_FEAT_BUFFER_MGMT) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tStreaming Supported   : %s\n", (flags & SED_L0DISC_TPER_FEAT_STREAMING) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tComID Mgmt Supported  : %s\n", (flags & SED_L0DISC_TPER_FEAT_COMID_MGMT) ? "Y" : "N");
 }
 
-static void print_locking_feat(struct sed_locking_supported_feat *locking)
+static void print_locking_feat(uint8_t flags)
 {
 	sedcli_printf(LOG_INFO, "\nSED LOCKING FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "-------------------------------\n");
 
-	sedcli_printf(LOG_INFO, "\tLocking Supported : %s\n", locking->locking_supp ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tLocking Enabled   : %s\n", locking->locking_en ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tLocked            : %s\n", locking->locked ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tMedia Encryption  : %s\n", locking->media_enc ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tMBR Enabled       : %s\n", locking->mbr_en ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tMBR Done          : %s\n", locking->mbr_done ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLocking Supported : %s\n", (flags & SED_L0DISC_LOCKING_FEAT_SUPP) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLocking Enabled   : %s\n", (flags & SED_L0DISC_LOCKING_FEAT_LOCKING_EN) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLocked            : %s\n", (flags & SED_L0DISC_LOCKING_FEAT_LOCKED) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tMedia Encryption  : %s\n", (flags & SED_L0DISC_LOCKING_FEAT_MEDIA_ENC) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tMBR Enabled       : %s\n", (flags & SED_L0DISC_LOCKING_FEAT_MBR_EN) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tMBR Done          : %s\n", (flags & SED_L0DISC_LOCKING_FEAT_MBR_DONE) ? "Y" : "N");
 }
 
 static void print_geometry_feat(struct sed_geometry_supported_feat *geo)
@@ -515,10 +515,10 @@ static void print_geometry_feat(struct sed_geometry_supported_feat *geo)
 	sedcli_printf(LOG_INFO, "\nSED GEOMETRY FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "--------------------------------\n");
 
-	sedcli_printf(LOG_INFO, "\tAlignment required    : %s\n", geo->rsvd_align.align ? "Y" : "N");
-	sedcli_printf(LOG_INFO, "\tLogical Block Size    : %d\n", be32toh(geo->logical_blk_sz));
-	sedcli_printf(LOG_INFO, "\tAlignment Granularity : %ld\n", be64toh(geo->alignmnt_granlrty));
-	sedcli_printf(LOG_INFO, "\tLowest Aligned LBA    : %ld\n",  be64toh(geo->lowest_aligned_lba));
+	sedcli_printf(LOG_INFO, "\tAlignment required    : %s\n", (geo->flags & SED_L0DISC_GEOM_ALIGN) ? "Y" : "N");
+	sedcli_printf(LOG_INFO, "\tLogical Block Size    : %d\n", geo->logical_blk_sz);
+	sedcli_printf(LOG_INFO, "\tAlignment Granularity : %ld\n", geo->alignmnt_granlrty);
+	sedcli_printf(LOG_INFO, "\tLowest Aligned LBA    : %ld\n", geo->lowest_aligned_lba);
 }
 
 static void print_datastr_feat(struct sed_datastr_table_supported_feat *datastr)
@@ -526,9 +526,9 @@ static void print_datastr_feat(struct sed_datastr_table_supported_feat *datastr)
 	sedcli_printf(LOG_INFO, "\nSED DATASTORE FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "---------------------------------\n");
 
-	sedcli_printf(LOG_INFO, "\tMax DataStore tables       : %d\n", be16toh(datastr->max_num_datastr_tbls));
-	sedcli_printf(LOG_INFO, "\tMax size DataStore tables  : %d\n", be32toh(datastr->max_total_size_datstr_tbls));
-	sedcli_printf(LOG_INFO, "\tDataStore table size align : %d\n", be32toh(datastr->datastr_tbl_size_align));
+	sedcli_printf(LOG_INFO, "\tMax DataStore tables       : %d\n", datastr->max_num_datastr_tbls);
+	sedcli_printf(LOG_INFO, "\tMax size DataStore tables  : %d\n", datastr->max_total_size_datstr_tbls);
+	sedcli_printf(LOG_INFO, "\tDataStore table size align : %d\n", datastr->datastr_tbl_size_align);
 }
 
 static void print_opalv100_feat(struct sed_opalv100_supported_feat *opalv100)
@@ -536,8 +536,8 @@ static void print_opalv100_feat(struct sed_opalv100_supported_feat *opalv100)
 	sedcli_printf(LOG_INFO, "\nSED Opal v1.00 FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "----------------------------------\n");
 
-	sedcli_printf(LOG_INFO, "\tBase ComID       : %d\n", be16toh(opalv100->v1_base_comid));
-	sedcli_printf(LOG_INFO, "\tNumber of ComIDs : %d\n", be16toh(opalv100->v1_comid_num));
+	sedcli_printf(LOG_INFO, "\tBase ComID       : %d\n", opalv100->v1_base_comid);
+	sedcli_printf(LOG_INFO, "\tNumber of ComIDs : %d\n", opalv100->v1_comid_num);
 }
 
 static void print_opalv200_header()
@@ -554,11 +554,11 @@ static void print_ruby_header()
 
 static void print_opalv200_ruby_feat(struct sed_opalv200_supported_feat *header)
 {
-	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(header->base_comid));
-	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(header->comid_num));
-	sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", header->rangecross_rsvd.range_crossing ? 0 : 1);
-	sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", be16toh(header->admin_lp_auth_num));
-	sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", be16toh(header->user_lp_auth_num));
+	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", header->base_comid);
+	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", header->comid_num);
+	sedcli_printf(LOG_INFO, "\tRange Crossing Behavior         : %d\n", (header->flags & SED_L0DISC_OPALV200_RUBY_FEAT_RANGE_CROSS) ? 0 : 1);
+	sedcli_printf(LOG_INFO, "\tAdmin Authorities LSP Supported : %d\n", header->admin_lp_auth_num);
+	sedcli_printf(LOG_INFO, "\tUser Authorities LSP Supported  : %d\n", header->user_lp_auth_num);
 	sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", header->init_pin);
 	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", header->revert_pin);
 }
@@ -571,8 +571,8 @@ static void print_pyrite_header(char *version)
 
 static void print_pyrite_feat(struct sed_pyrite_supported_feat *pyrite_feat)
 {
-	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", be16toh(pyrite_feat->base_comid));
-	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", be16toh(pyrite_feat->comid_num));
+	sedcli_printf(LOG_INFO, "\tBase ComID                      : %d\n", pyrite_feat->base_comid);
+	sedcli_printf(LOG_INFO, "\tNumber of ComIDs                : %d\n", pyrite_feat->comid_num);
 	sedcli_printf(LOG_INFO, "\tInitial PIN                     : %d\n", pyrite_feat->init_pin);
 	sedcli_printf(LOG_INFO, "\tRevert PIN                      : %d\n", pyrite_feat->revert_pin);
 }
@@ -587,12 +587,12 @@ static void print_data_rm_mechanism_feat(struct sed_data_rm_mechanism_feat *data
 	sedcli_printf(LOG_INFO, "-------------------------------------------\n");
 
 	sedcli_printf(LOG_INFO, "\tData Removal Operation Processing     : %s\n",
-		      data_rm_feat->rmopprocessing_rsvd.rm_op_processing ? "Revert or RevertSP" : "Other");
+		      (data_rm_feat->flags & SED_L0DISC_DATARM_FEAT_REMOVAL_OP) ? "Revert or RevertSP" : "Other");
 
 	sedcli_printf(LOG_INFO, "\tSupported Data Removal Mechanisms:\n");
 
 	val = data_rm_feat->supp_data_rm_mechanism;
-	fmt = data_rm_feat->datarmtimefmtbits_rsvd.data_rm_time_fmt;
+	fmt = data_rm_feat->time_formats;
 	cnt = 1;
 	for (i = 0; i < ARRAY_SIZE(map); i++) {
 		if (val & map[i].mask) {
@@ -627,9 +627,9 @@ static void print_blocksid_feat(struct sed_blocksid_supported_feat *blocksid)
 	sedcli_printf(LOG_INFO, "\nBlock SID FEATURES SUPPORTED\n");
 	sedcli_printf(LOG_INFO, "-----------------------------\n");
 
-	sedcli_printf(LOG_INFO, "\tSID Value State     : %d\n", blocksid->sid_valuestate ? 1 : 0);
-	sedcli_printf(LOG_INFO, "\tSID Blocked State   : %d\n", blocksid->sid_blockstate ? 1 : 0);
-	sedcli_printf(LOG_INFO, "\tHardware Reset Flag : %d\n", blocksid->hardware_reset ? 1 : 0);
+	sedcli_printf(LOG_INFO, "\tSID Value State     : %d\n", (blocksid->flags1 & SED_L0DISC_BLOCKSID_FEAT1_SID_VALUE) ? 1 : 0);
+	sedcli_printf(LOG_INFO, "\tSID Blocked State   : %d\n", (blocksid->flags1 & SED_L0DISC_BLOCKSID_FEAT1_SID_AUTH_BLOCKED) ? 1 : 0);
+	sedcli_printf(LOG_INFO, "\tHardware Reset Flag : %d\n", (blocksid->flags2 & SED_L0DISC_BLOCKSID_FEAT2_HW_RESET) ? 1 : 0);
 }
 
 static void print_cnl_feat(struct sed_cnl_feat *cnl)
@@ -638,15 +638,15 @@ static void print_cnl_feat(struct sed_cnl_feat *cnl)
 	sedcli_printf(LOG_INFO, "---------------------------\n");
 
 	sedcli_printf(LOG_INFO, "\tNamespace Non-Global Range Locking objects Supported : %s\n",
-			cnl->ranges_rsvd.range_c ? "Y" : "N");
+			(cnl->flags & SED_L0DISC_CNL_FEAT_RANGEC) ? "Y" : "N");
 	sedcli_printf(LOG_INFO, "\tNamespace Non-Global Range Locking objects           : %s\n",
-			cnl->ranges_rsvd.range_p ? "ONE or MORE" : "ZERO");
+			(cnl->flags & SED_L0DISC_CNL_FEAT_RANGEP) ? "ONE or MORE" : "ZERO");
 	sedcli_printf(LOG_INFO, "\tMaximum Key Count                                    : %d\n",
-			be32toh(cnl->max_key_count));
+			cnl->max_key_count);
 	sedcli_printf(LOG_INFO, "\tUnused Key Count                                     : %d\n",
-			be32toh(cnl->unused_key_count));
+			cnl->unused_key_count);
 	sedcli_printf(LOG_INFO, "\tMaximum Ranges Per Namespace                         : %d (%#x)\n",
-			be32toh(cnl->max_ranges_per_ns), be32toh(cnl->max_ranges_per_ns));
+			cnl->max_ranges_per_ns, cnl->max_ranges_per_ns);
 }
 
 static void print_tper_properties(struct sed_tper_properties *tper)
@@ -666,16 +666,16 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 {
 	uint16_t comid = 0;
 
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200) {
-		comid = be16toh(discv->sed_lvl0_discv.sed_opalv200.base_comid);
-	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv100) {
-		comid = be16toh(discv->sed_lvl0_discv.sed_opalv100.v1_base_comid);
-	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
-		comid = be16toh(discv->sed_lvl0_discv.sed_ruby.base_comid);
-	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev200) {
-		comid = be16toh(discv->sed_lvl0_discv.sed_pyritev200.base_comid);
-	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev100) {
-		comid = be16toh(discv->sed_lvl0_discv.sed_pyritev100.base_comid);
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV200_DESC) {
+		comid = discv->sed_lvl0_discv.sed_opalv200.base_comid;
+	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV100_DESC) {
+		comid = discv->sed_lvl0_discv.sed_opalv100.v1_base_comid;
+	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_RUBY_DESC) {
+		comid = discv->sed_lvl0_discv.sed_ruby.base_comid;
+	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_PYRITEV200_DESC) {
+		comid = discv->sed_lvl0_discv.sed_pyritev200.base_comid;
+	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_PYRITEV100_DESC) {
+		comid = discv->sed_lvl0_discv.sed_pyritev100.base_comid;
 	}
 
 	if (!comid) {
@@ -683,38 +683,38 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 		return;
 	}
 
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_tper)
-		print_tper_feat(&discv->sed_lvl0_discv.sed_tper);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_locking)
-		print_locking_feat(&discv->sed_lvl0_discv.sed_locking);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_geometry)
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_TPER_DESC)
+		print_tper_feat(discv->sed_lvl0_discv.tper_feat);
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_LOCKING_DESC)
+		print_locking_feat(discv->sed_lvl0_discv.locking_feat);
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_GEOMETRY_DESC)
 		print_geometry_feat(&discv->sed_lvl0_discv.sed_geo);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_datastr_table)
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_DATASTORE_DESC)
 		print_datastr_feat(&discv->sed_lvl0_discv.sed_datastr);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv100)
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV100_DESC)
 		print_opalv100_feat(&discv->sed_lvl0_discv.sed_opalv100);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200) {
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV200_DESC) {
 		print_opalv200_header();
 		print_opalv200_ruby_feat(&discv->sed_lvl0_discv.sed_opalv200);
 	}
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev100) {
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_PYRITEV100_DESC) {
 		print_pyrite_header(PYRITE_V100);
 		print_pyrite_feat(&discv->sed_lvl0_discv.sed_pyritev100);
 	}
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_pyritev200) {
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_PYRITEV200_DESC) {
 		print_pyrite_header(PYRITE_V200);
 		print_pyrite_feat(&discv->sed_lvl0_discv.sed_pyritev200);
 	}
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_data_rm_mechanism) {
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_DATA_RM_DESC) {
 		print_data_rm_mechanism_feat(&discv->sed_lvl0_discv.sed_data_rm_mechanism);
 	}
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_RUBY_DESC) {
 		print_ruby_header();
 		print_opalv200_ruby_feat(&discv->sed_lvl0_discv.sed_ruby);
 	}
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_blocksid)
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_BLOCKSID_DESC)
 		print_blocksid_feat(&discv->sed_lvl0_discv.sed_blocksid);
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_cnl)
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_CNL_DESC)
 		print_cnl_feat(&discv->sed_lvl0_discv.sed_cnl);
 
 	print_tper_properties(&discv->sed_tper_props);
@@ -733,12 +733,12 @@ static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
 	bool locking_enabled;
 	uint16_t comid = 0;
 
-	locking_enabled = discv->sed_lvl0_discv.sed_locking.locking_en ? true : false;
-	if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv200) {
+	locking_enabled = (discv->sed_lvl0_discv.locking_feat & SED_L0DISC_LOCKING_FEAT_LOCKING_EN) ? true : false;
+	if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV200_DESC) {
 		comid = discv->sed_lvl0_discv.sed_opalv200.base_comid;
-	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_ruby) {
+	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_RUBY_DESC) {
 		comid = discv->sed_lvl0_discv.sed_ruby.base_comid;
-	} else if (discv->sed_lvl0_discv.feat_avail_flag.feat_opalv100) {
+	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV100_DESC) {
 		comid = discv->sed_lvl0_discv.sed_opalv100.v1_base_comid;
 	}
 
@@ -1020,7 +1020,7 @@ static int check_current_levl0_discv(struct sed_device *dev)
 	 * Check the current status of any level0 feture (Add them here)
 	 * Return zero on successful checks and -1 on unsuccessful checks
 	 */
-	if (!discv.sed_lvl0_discv.sed_locking.locking_en) {
+	if (!(discv.sed_lvl0_discv.locking_feat & SED_L0DISC_LOCKING_FEAT_LOCKING_EN)) {
 		sedcli_printf(LOG_INFO, "LSP NOT ACTIVATED\n");
 		ret = -1;
 	}
