@@ -190,32 +190,8 @@ enum opaltoken {
 	OPAL_WHERE = 0x00,
 };
 
-struct tper_supported_feat {
-	uint8_t sync_supp :1;
-	uint8_t async_supp :1;
-	uint8_t ack_nak_supp :1;
-	uint8_t buff_mgmt_supp :1;
-	uint8_t stream_supp :1;
-	uint8_t reserved1 :1;
-	uint8_t comid_mgmt_supp :1;
-	uint8_t reserved2:1;
-} __attribute__((__packed__));
-
-struct locking_supported_feat {
-	uint8_t locking_supp:1;
-	uint8_t locking_en:1;
-	uint8_t locked:1;
-	uint8_t media_enc:1;
-	uint8_t mbr_en:1;
-	uint8_t mbr_done:1;
-	uint8_t reserved:2;
-} __attribute__((__packed__));
-
 struct geometry_supported_feat {
-	struct {
-		uint8_t align:1;
-		uint8_t rsvd1:7;
-	} __attribute__((__packed__)) rsvd_align;
+	uint8_t flags;
 	uint8_t rsvd2[7];
 	uint32_t logical_blk_sz;
 	uint64_t alignmnt_granlrty;
@@ -229,11 +205,8 @@ struct datastr_table_supported_feat {
 } __attribute__((__packed__));
 
 struct blocksid_supported_feat {
-	uint8_t sid_valuestate:1;
-	uint8_t sid_blockedstate:1;
-	uint8_t reserved:6;
-	uint8_t hardware_reset:1;
-	uint8_t reserved1:7;
+	uint8_t flags1;
+	uint8_t flags2;
 	uint8_t reserved2[10];
 } __attribute__((__packed__));
 
@@ -245,10 +218,7 @@ struct opalv100_supported_feat {
 struct opalv200_supported_feat {
 	uint16_t base_comid;
 	uint16_t comid_num;
-	struct {
-		uint8_t range_crossing:1;
-		uint8_t rsvd1:7;
-	} __attribute__((__packed__)) rangecross_rsvd;
+	uint8_t flags;
 	uint16_t admin_lp_auth_num;
 	uint16_t user_lp_auth_num;
 	uint8_t init_pin;
@@ -267,63 +237,19 @@ struct pyrite_supported_feat {
 
 struct data_rm_mechanism_feat {
 	uint8_t reserved;
-	struct {
-		uint8_t rm_op_processing:1;
-		uint8_t rsvd1:7;
-	} __attribute__((__packed__)) rmopprocessing_rsvd;
+	uint8_t flags;
 	uint8_t supp_data_rm_mechanism;
-	struct {
-		uint8_t data_rm_time_fmt:6;
-		uint8_t rsvd2:2;
-	} __attribute__((__packed__)) datarmtimefmtbits_rsvd;
+	uint8_t time_formats;
 	uint16_t data_rm_time[6];
 	uint8_t reserved2[16];
 } __attribute__((__packed__));
 
 struct cnl_feat {
-	struct {
-		uint8_t rsvd1:6;
-		uint8_t range_p:1;
-		uint8_t range_c:1;
-	} __attribute__((__packed__)) ranges_rsvd;
+	uint8_t flags;
 	uint8_t rsvd2[3];
 	uint32_t max_key_count;
 	uint32_t unused_key_count;
 	uint32_t max_ranges_per_ns;
-} __attribute__((__packed__));
-
-struct opal_l0_feat {
-	int type;
-	union {
-		struct {
-			struct tper_supported_feat flags;
-		} tper;
-
-		struct{
-			struct locking_supported_feat flags;
-		} locking;
-
-		struct geometry_supported_feat geo;
-
-		struct datastr_table_supported_feat datastr;
-
-		struct opalv100_supported_feat opalv100;
-
-		struct opalv200_supported_feat opalv200;
-
-		struct opalv200_supported_feat ruby;
-
-		struct pyrite_supported_feat pyritev100;
-
-		struct pyrite_supported_feat pyritev200;
-	} feat;
-};
-
-struct opal_l0_disc {
-	int feats_size;
-	uint32_t rev;
-	uint16_t comid;
-	struct opal_l0_feat feats[MAX_FEATURES];
 } __attribute__((__packed__));
 
 struct opal_level0_header {
@@ -333,21 +259,20 @@ struct opal_level0_header {
 	uint8_t vendor_specific[32];
 } __attribute__((__packed__)) ;
 
+struct opal_basic_desc {
+	uint8_t flags;
+	uint8_t reserved[11];
+} __attribute__((__packed__));
+
 struct opal_level0_feat_desc {
 	uint16_t code;
 	uint8_t reserved :4;
 	uint8_t rev :4;
 	uint8_t len;
 	union {
-		struct {
-			struct tper_supported_feat flags;
-			uint8_t reserved[11];
-		} __attribute__((__packed__)) tper;
+		struct opal_basic_desc tper;
 
-		struct {
-			struct locking_supported_feat flags;
-			uint8_t reserved[11];
-		} __attribute__((__packed__)) locking;
+		struct opal_basic_desc locking;
 
 		struct {
 			uint8_t reserved[2];
@@ -407,14 +332,6 @@ struct opal_header {
 	uint8_t payload[];
 } __attribute__((__packed__));
 
-struct opal_level0_discovery {
-	struct tper_supported_feat tper;
-	struct locking_supported_feat locking;
-	struct geometry_supported_feat geo;
-	struct datastr_table_supported_feat datastr;
-	struct opalv100_supported_feat opalv100;
-	struct opalv200_supported_feat opalv200;
-};
 
 int opal_init_pt(struct sed_device *dev,
 		const char *device_path);
