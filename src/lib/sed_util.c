@@ -18,6 +18,16 @@
 #include "sed_util.h"
 #include "sedcli_log.h"
 
+static bool is_spdk_dev(const char *dev)
+{
+	char *spdk_dev = "/dev/spdk/";
+
+	if (strncmp(dev, spdk_dev, strlen(spdk_dev)) == 0)
+		return true;
+	else
+		return false;
+}
+
 int open_dev(const char *dev)
 {
 	int err, fd;
@@ -34,7 +44,7 @@ int open_dev(const char *dev)
 		goto perror;
 	}
 
-	if (!S_ISBLK(_stat.st_mode)) {
+	if (!is_spdk_dev(dev) && !S_ISBLK(_stat.st_mode)) {
 		SEDCLI_DEBUG_PARAM("%s is not a block device!\n", dev);
 		close(fd);
 		return -ENODEV;
