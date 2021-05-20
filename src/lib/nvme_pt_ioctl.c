@@ -811,6 +811,12 @@ static uint8_t check_resp_status(struct opal_parsed_payload *payload)
 	if (resp_token_match(token, OPAL_ENDOFSESSION))
 		return 0;
 
+	if (resp_token_match(token, OPAL_STARTTRANSACTION))
+		return 0;
+
+	if (resp_token_match(token, OPAL_ENDTRANSACTION))
+		return payload->tokens[num - 1]->vals.uint;
+
 	if (num < 5)
 		return DTAERROR_NO_METHOD_STATUS;
 
@@ -1071,6 +1077,53 @@ static int opal_start_auth_session(int fd, struct opal_device *dev,
 put_tokens:
 	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
 
+	return ret;
+}
+
+static int opal_start_transaction(int fd, struct opal_device *dev)
+{
+	uint8_t *buf;
+	int pos = 0, ret = 0;
+	size_t buf_len;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
+
+	init_req(dev);
+
+	pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTTRANSACTION);
+	pos += append_u8(buf + pos, buf_len - pos, 0);
+
+	prepare_cmd_header(dev, buf, pos);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_end_transaction(int fd, struct opal_device *dev, uint8_t commit) {
+	uint8_t *buf;
+	int pos = 0, ret = 0;
+	size_t buf_len;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
+
+	init_req(dev);
+
+	pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDTRANSACTION);
+	/* 0 - commit; 1 - abort */
+	pos += append_u8(buf + pos, buf_len - pos, commit ? 0 : 1);
+
+	prepare_cmd_header(dev, buf, pos);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	/* 0 - transaction committed; 1 - transaction aborted */
 	return ret;
 }
 
