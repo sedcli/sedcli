@@ -1087,8 +1087,6 @@ static int opal_end_session(int fd, struct opal_device *dev)
 
 	pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDOFSESSION);
 
-	prepare_cmd_end(buf, buf_len, &pos);
-
 	prepare_cmd_header(dev, buf, pos);
 
 	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, true);
