@@ -61,6 +61,7 @@ void opal_parser_deinit(void)
 		free(token_storage);
 		token_storage = NULL;
 	}
+	free_token_list.next = NULL;
 }
 
 static int append_short_atom_bytes_header(uint8_t *buf, size_t len, int data_len)
