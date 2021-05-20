@@ -1081,7 +1081,7 @@ static int opal_end_session(int fd, struct opal_device *dev)
 	size_t buf_len;
 
 	buf = dev->req_buf + sizeof(struct opal_header);
-	buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
 
 	init_req(dev);
 
@@ -1214,7 +1214,7 @@ static int opal_activate_lsp(int fd, struct opal_device *dev, bool sum, uint8_t 
 	uint8_t usr_lr[OPAL_UID_LENGTH], *buf;
 
 	buf = dev->req_buf + sizeof(struct opal_header);
-	buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
 
 	prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[OPAL_LOCKING_SP_UID],
 			opal_method[OPAL_ACTIVATE_METHOD_UID]);
