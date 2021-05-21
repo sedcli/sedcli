@@ -811,6 +811,12 @@ static uint8_t check_resp_status(struct opal_parsed_payload *payload)
 	if (resp_token_match(token, OPAL_ENDOFSESSION))
 		return 0;
 
+	if (resp_token_match(token, OPAL_STARTTRANSACTION))
+		return 0;
+
+	if (resp_token_match(token, OPAL_ENDTRANSACTION))
+		return payload->tokens[num - 1]->vals.uint;
+
 	if (num < 5)
 		return DTAERROR_NO_METHOD_STATUS;
 
@@ -1074,6 +1080,53 @@ put_tokens:
 	return ret;
 }
 
+static int opal_start_transaction(int fd, struct opal_device *dev)
+{
+	uint8_t *buf;
+	int pos = 0, ret = 0;
+	size_t buf_len;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
+
+	init_req(dev);
+
+	pos += append_u8(buf + pos, buf_len - pos, OPAL_STARTTRANSACTION);
+	pos += append_u8(buf + pos, buf_len - pos, 0);
+
+	prepare_cmd_header(dev, buf, pos);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	return ret;
+}
+
+static int opal_end_transaction(int fd, struct opal_device *dev, uint8_t commit) {
+	uint8_t *buf;
+	int pos = 0, ret = 0;
+	size_t buf_len;
+
+	buf = dev->req_buf + sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
+
+	init_req(dev);
+
+	pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDTRANSACTION);
+	/* 0 - commit; 1 - abort */
+	pos += append_u8(buf + pos, buf_len - pos, commit ? 0 : 1);
+
+	prepare_cmd_header(dev, buf, pos);
+
+	ret = opal_snd_rcv_cmd_parse_chk(fd, dev, false);
+
+	opal_put_all_tokens(dev->payload.tokens, &dev->payload.len);
+
+	/* 0 - transaction committed; 1 - transaction aborted */
+	return ret;
+}
+
 static int opal_end_session(int fd, struct opal_device *dev)
 {
 	uint8_t *buf;
@@ -1081,13 +1134,11 @@ static int opal_end_session(int fd, struct opal_device *dev)
 	size_t buf_len;
 
 	buf = dev->req_buf + sizeof(struct opal_header);
-	buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
 
 	init_req(dev);
 
 	pos += append_u8(buf + pos, buf_len - pos, OPAL_ENDOFSESSION);
-
-	prepare_cmd_end(buf, buf_len, &pos);
 
 	prepare_cmd_header(dev, buf, pos);
 
@@ -1214,7 +1265,7 @@ static int opal_activate_lsp(int fd, struct opal_device *dev, bool sum, uint8_t 
 	uint8_t usr_lr[OPAL_UID_LENGTH], *buf;
 
 	buf = dev->req_buf + sizeof(struct opal_header);
-	buf_len = sizeof(dev->req_buf) - sizeof(struct opal_header);
+	buf_len = dev->req_buf_size - sizeof(struct opal_header);
 
 	prepare_cmd_init(dev, buf, buf_len, &pos, opal_uid[OPAL_LOCKING_SP_UID],
 			opal_method[OPAL_ACTIVATE_METHOD_UID]);
