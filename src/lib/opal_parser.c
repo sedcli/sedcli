@@ -364,7 +364,7 @@ static struct opal_token *opal_get_next_token(uint8_t *buf, int len, int *pos)
 	while (!done) {
 		if ((len - offset) <= 0) {
 			*pos = offset;
-			return NULL;
+			goto put_token;
 		}
 
 		curr_byte = buf[0];
@@ -381,7 +381,7 @@ static struct opal_token *opal_get_next_token(uint8_t *buf, int len, int *pos)
 			if (status > 0)
 				offset += status;
 			else
-				return NULL;
+				goto put_token;
 
 			break;
 		case 0xC0 ... 0xDF:
@@ -389,14 +389,14 @@ static struct opal_token *opal_get_next_token(uint8_t *buf, int len, int *pos)
 			if (status > 0)
 				offset += status;
 			else
-				return NULL;
+				goto put_token;
 			break;
 		case 0xE0 ... 0xE3:
 			status = parse_long_token(token, buf, len - offset);
 			if (status > 0)
 				offset += status;
 			else
-				return NULL;
+				goto put_token;
 
 			break;
 		default:
@@ -414,6 +414,10 @@ static struct opal_token *opal_get_next_token(uint8_t *buf, int len, int *pos)
 	*pos = offset;
 
 	return token;
+
+put_token:
+	opal_put_token(token);
+	return NULL;
 }
 
 int opal_parse_data_payload(uint8_t *buf, size_t len, struct opal_parsed_payload *payload)
