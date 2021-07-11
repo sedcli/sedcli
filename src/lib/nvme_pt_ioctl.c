@@ -602,6 +602,14 @@ int opal_dev_discv_info_pt(struct sed_device *dev,
 	return 0;
 }
 
+static void build_ext_comid(uint8_t *buff, uint16_t comid)
+{
+	buff[0] = comid >> 8;
+	buff[1] = comid & 0xFF;
+	buff[2] = 0;
+	buff[3] = 0;
+}
+
 static void init_req(struct opal_device *dev)
 {
 	struct opal_header *header;
@@ -609,10 +617,7 @@ static void init_req(struct opal_device *dev)
 	memset(dev->req_buf, 0, dev->req_buf_size);
 	header = (struct opal_header*) dev->req_buf;
 
-	header->compacket.ext_comid[0] = dev->comid >> 8;
-	header->compacket.ext_comid[1] = dev->comid & 0xFF;
-	header->compacket.ext_comid[2] = 0;
-	header->compacket.ext_comid[3] = 0;
+	build_ext_comid(header->compacket.ext_comid, dev->comid);
 }
 
 /* Building a Global Locking Range based on the lr value passed by the user */
