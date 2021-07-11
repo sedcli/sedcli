@@ -407,7 +407,7 @@ static int opal_level0_disc_pt(struct sed_device *device)
 	uint16_t feat_code;
 	uint8_t *buffer;
 
-	ret = opal_recv(fd, OPAL_DISCOVERY_COMID, dev->resp_buf,
+	ret = opal_recv(fd, TCG_SECP_01, OPAL_DISCOVERY_COMID, dev->resp_buf,
 			dev->resp_buf_size);
 	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in Level 0 Discovery. Returning early\n");
@@ -842,7 +842,7 @@ static int opal_snd_rcv_cmd_parse_chk(int fd, struct opal_device *dev, bool end_
 	int ret = 0, data_buf_len = 0,subpacket_len = 0;
 
 	/* Send command and receive results */
-	ret = opal_send_recv(fd, dev->comid, dev->req_buf,
+	ret = opal_send_recv(fd, TCG_SECP_01, dev->comid, dev->req_buf,
 			dev->req_buf_size, dev->resp_buf, dev->resp_buf_size);
 	if (ret) {
 		SEDCLI_DEBUG_MSG("Error in NVMe passthrough ops\n");

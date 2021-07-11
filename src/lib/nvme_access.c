@@ -54,7 +54,7 @@ int opal_send(int fd, uint8_t proto_id, uint16_t com_id, uint8_t *buf, int buf_l
 	return ret;
 }
 
-int opal_recv(int fd, uint16_t com_id, uint8_t *buf, int buf_len)
+int opal_recv(int fd, uint8_t proto_id, uint16_t com_id, uint8_t *buf, int buf_len)
 {
 	int ret, done;
 	struct opal_header *header;
@@ -65,7 +65,7 @@ int opal_recv(int fd, uint16_t com_id, uint8_t *buf, int buf_len)
 		done = 1;
 		memset(buf, 0, buf_len);
 
-		ret = send_recv_nvme_pt_ioctl(fd, RECV, TCG_SECP_01, com_id,
+		ret = send_recv_nvme_pt_ioctl(fd, RECV, proto_id, com_id,
 				buf, buf_len);
 		if (ret == 0) {
 			header = (struct opal_header *) buf;
@@ -84,16 +84,16 @@ int opal_recv(int fd, uint16_t com_id, uint8_t *buf, int buf_len)
 	return ret;
 }
 
-int opal_send_recv(int fd, uint16_t com_id, uint8_t *req_buf,
+int opal_send_recv(int fd, uint8_t proto_id, uint16_t com_id, uint8_t *req_buf,
 		int req_buf_len, uint8_t *resp_buf, int resp_buf_len)
 {
 	int ret;
 
-	ret = opal_send(fd, TCG_SECP_01, com_id, req_buf, req_buf_len);
+	ret = opal_send(fd, proto_id, com_id, req_buf, req_buf_len);
 	if (ret)
 		return ret;
 
-	ret = opal_recv(fd, com_id, resp_buf, resp_buf_len);
+	ret = opal_recv(fd, proto_id, com_id, resp_buf, resp_buf_len);
 
 	return ret;
 }
