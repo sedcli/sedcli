@@ -47,6 +47,8 @@
 #define OPAL_BLOCKSID_COMID  5
 #define BLOCKSID_PAYLOAD_SZ  512
 
+#define STACK_RESET_PAYLOAD_SZ 64
+
 /* #define TPer property name strings here */
 #define MCPS "MaxComPacketSize"
 
@@ -2619,5 +2621,39 @@ int opal_block_sid_pt(struct sed_device *dev, bool hw_reset)
 	}
 
 	return ret;
+}
+
+int opal_stack_reset_pt(struct sed_device *dev)
+{
+	struct opal_device *device = dev->priv;
+	int ret;
+
+	memset(device->req_buf, 0, device->req_buf_size);
+	memset(device->resp_buf, 0, device->resp_buf_size);
+
+	build_ext_comid(device->req_buf, device->comid);
+
+	/*
+	 * Stack Reset Request Code: 00 00 00 02 (Payload bytes 4 to 7)
+	 */
+	device->req_buf[4] = 0;
+	device->req_buf[5] = 0;
+	device->req_buf[6] = 0;
+	device->req_buf[7] = 2;
+
+	ret = opal_send_recv(dev->fd, TCG_SECP_02, device->comid, device->req_buf,
+			     STACK_RESET_PAYLOAD_SZ, device->resp_buf,
+			     STACK_RESET_PAYLOAD_SZ);
+	if (ret) {
+		SEDCLI_DEBUG_MSG("Error in NVMe passthrough ops\n");
+		return ret;
+	}
+
+	if (device->resp_buf[10] == 0 && device->resp_buf[11] == 0) {
+		SEDCLI_DEBUG_MSG("No Response Available for GET_COMID_RESPONSE command\n");
+		return 0;
+	}
+
+	return device->resp_buf[15];
 }
 
