@@ -397,6 +397,8 @@ int opal_list_lr_pt(struct sed_device *dev, const struct sed_key *key,
 
 int opal_block_sid_pt(struct sed_device *dev, bool hw_reset);
 
+int opal_stack_reset_pt(struct sed_device *dev);
+
 void opal_deinit_pt(struct sed_device *dev);
 
 #endif /* _NVME_PT_IOCTL_H */
