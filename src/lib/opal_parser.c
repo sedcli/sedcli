@@ -26,8 +26,8 @@ struct _opal_token {
 };
 
 /* Token data storage  */
-static struct _opal_token free_token_list = { .next = NULL };
-static struct _opal_token *token_storage = NULL;
+static __thread struct _opal_token free_token_list = { .next = NULL };
+static __thread struct _opal_token *token_storage = NULL;
 
 static int div_roundup(int n, int d)
 {
