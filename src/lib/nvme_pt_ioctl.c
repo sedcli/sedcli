@@ -2159,15 +2159,14 @@ int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key, bool ke
 	return ret;
 }
 
-int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+int opal_add_usr_to_lr_pt(struct sed_device *dev, const struct sed_key *key,
 		const char *usr, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
-	struct sed_key disk_key;
 	int ret = 0;
 	struct opal_device *opal_dev;
 	uint32_t who, lk_type = lock_type;
 
-	if (lk_type > SED_NO_ACCESS || key == NULL || key_len == 0 || usr == NULL) {
+	if (lk_type > SED_NO_ACCESS || key == NULL || key->len == 0 || usr == NULL) {
 		SEDCLI_DEBUG_MSG("Need to supply user, lock type and password!\n");
 		return -EINVAL;
 	}
@@ -2177,12 +2176,7 @@ int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_l
 		return -EINVAL;
 	}
 
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret)
 		goto end_sessn;
 
@@ -2193,10 +2187,9 @@ end_sessn:
 	return ret;
 }
 
-int opal_activate_usr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+int opal_activate_usr_pt(struct sed_device *dev, const struct sed_key *key,
 		const char *user)
 {
-	struct sed_key disk_key;
 	int ret = 0;
 	struct opal_device *opal_dev;
 	uint32_t who;
@@ -2222,12 +2215,7 @@ int opal_activate_usr_pt(struct sed_device *dev, const char *key, uint8_t key_le
 		return -EINVAL;
 	}
 
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, &disk_key);
+	ret = opal_start_admin1_lsp_session(dev->fd, opal_dev, key);
 	if (ret)
 		goto end_sessn;
 
@@ -2238,12 +2226,11 @@ end_sessn:
 	return ret;
 }
 
-int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+int opal_setuplr_pt(struct sed_device *dev, const struct sed_key *key,
 		const char *user, uint8_t lr, size_t range_start,
 		size_t range_length, bool sum, bool RLE, bool WLE)
 
 {
-	struct sed_key disk_key;
 	struct opal_device *opal_dev;
 	uint32_t who = SED_ADMIN1;
 	int ret = 0;
@@ -2262,12 +2249,7 @@ int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
 		}
 	}
 
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_auth_session(dev->fd, opal_dev, sum, lr, who, &disk_key);
+	ret = opal_start_auth_session(dev->fd, opal_dev, sum, lr, who, key);
 	if (ret)
 		goto end_sessn;
 
@@ -2394,15 +2376,14 @@ end_sessn:
 	return ret;
 }
 
-int opal_eraselr_pt(struct sed_device *dev, const char *password,
-		uint8_t key_len, const char *user, const uint8_t lr, bool sum)
+int opal_eraselr_pt(struct sed_device *dev, const struct sed_key *key,
+		const char *user, const uint8_t lr, bool sum)
 {
-	struct sed_key disk_key;
 	struct opal_device *opal_dev;
 	uint32_t who = SED_ADMIN1;
 	int ret = 0;
 
-	if ((!sum && user == NULL) || password == NULL) {
+	if ((!sum && user == NULL) || key == NULL) {
 		SEDCLI_DEBUG_MSG("Must provide the password, user and locking "\
 				"range to be erased.\n");
 		return -EINVAL;
@@ -2415,12 +2396,7 @@ int opal_eraselr_pt(struct sed_device *dev, const char *password,
 		}
 	}
 
-	ret = sed_key_init(&disk_key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	ret = opal_start_auth_session(dev->fd, opal_dev, sum, lr, who, &disk_key);
+	ret = opal_start_auth_session(dev->fd, opal_dev, sum, lr, who, key);
 	if (ret)
 		goto end_sessn;
 

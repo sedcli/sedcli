@@ -27,11 +27,11 @@ typedef int (*activate_lsp)(struct sed_device *, const struct sed_key *,
 			char *, bool);
 typedef int (*revertsp)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*setup_global_range)(struct sed_device *, const struct sed_key *);
-typedef int (*add_usr_to_lr)(struct sed_device *, const char *, uint8_t,
+typedef int (*add_usr_to_lr)(struct sed_device *, const struct sed_key *,
 			const char *, enum SED_ACCESS_TYPE, uint8_t);
-typedef int (*activate_usr)(struct sed_device *, const char *, uint8_t,
+typedef int (*activate_usr)(struct sed_device *, const struct sed_key *,
 			const char *);
-typedef int (*setuplr)(struct sed_device *, const char *, uint8_t,
+typedef int (*setuplr)(struct sed_device *, const struct sed_key *,
 			const char *, uint8_t, size_t, size_t, bool,
 			bool, bool);
 typedef int (*lock_unlock)(struct sed_device *, const struct sed_key *, enum SED_ACCESS_TYPE);
@@ -40,8 +40,8 @@ typedef int (*shadow_mbr)(struct sed_device *, const struct sed_key *, bool);
 typedef int (*mbr_done) (struct sed_device *, const struct sed_key *, bool);
 typedef int (*write_shadow_mbr)(struct sed_device *, const struct sed_key *,
 				const uint8_t *, uint32_t, uint32_t);
-typedef int (*eraselr)(struct sed_device *, const char *,
-			uint8_t, const char *, uint8_t , bool);
+typedef int (*eraselr)(struct sed_device *, const struct sed_key *,
+			const char *, uint8_t , bool);
 typedef int (*ds_add_anybody_get)(struct sed_device *, const struct sed_key *);
 typedef int (*ds_read)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, uint8_t *, uint32_t, uint32_t);
 typedef int (*ds_write)(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, const uint8_t *, uint32_t, uint32_t);
@@ -274,23 +274,23 @@ int sed_lock_unlock(struct sed_device *dev, const struct sed_key *key,
 	return curr_if->lock_unlock_fn(dev, key, lock_type);
 }
 
-int sed_addusertolr(struct sed_device *dev, const char *pass, uint8_t key_len,
+int sed_addusertolr(struct sed_device *dev, const struct sed_key *key,
 		    const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
-	return curr_if->addusr_to_lr_fn(dev, pass, key_len, user, lock_type, lr);
+	return curr_if->addusr_to_lr_fn(dev, key, user, lock_type, lr);
 }
 
-int sed_enableuser(struct sed_device *dev, const char *pass, uint8_t key_len,
+int sed_enableuser(struct sed_device *dev, const struct sed_key *key,
 		   const char *user)
 {
-	return curr_if->activate_usr_fn(dev, pass, key_len, user);
+	return curr_if->activate_usr_fn(dev, key, user);
 }
 
-int sed_setuplr(struct sed_device *dev, const char *pass, uint8_t key_len,
+int sed_setuplr(struct sed_device *dev, const struct sed_key *key,
 		const char *user, uint8_t lr, size_t range_start,
 		size_t range_length, bool sum, bool RLE, bool WLE)
 {
-	return curr_if->setuplr_fn(dev, pass, key_len, user, lr, range_start,
+	return curr_if->setuplr_fn(dev, key, user, lr, range_start,
 				   range_length, sum, RLE, WLE);
 }
 
@@ -319,10 +319,10 @@ int sed_mbrdone(struct sed_device *dev, const struct sed_key *key, bool mbr)
 	return curr_if->mbr_done_fn(dev, key, mbr);
 }
 
-int sed_eraselr(struct sed_device *dev, const char *password,
-		uint8_t key_len, const char *user, const uint8_t lr, bool sum)
+int sed_eraselr(struct sed_device *dev, const struct sed_key *key,
+		const char *user, const uint8_t lr, bool sum)
 {
-	return curr_if->eraselr_fn(dev, password, key_len, user, lr, sum);
+	return curr_if->eraselr_fn(dev, key, user, lr, sum);
 }
 
 int sed_ds_read(struct sed_device *dev, enum SED_AUTHORITY auth,

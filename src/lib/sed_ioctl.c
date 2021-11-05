@@ -165,17 +165,15 @@ int sedopal_setup_global_range(struct sed_device *dev, const struct sed_key *key
 	return ioctl(fd, IOC_OPAL_LR_SETUP, &setup);
 }
 
-int sedopal_setuplr(struct sed_device *dev, const char *password, uint8_t key_len,
+int sedopal_setuplr(struct sed_device *dev, const struct sed_key *key,
                     const char *user, uint8_t lr, size_t range_start,
                     size_t range_length, bool sum, bool RLE, bool WLE)
 {
-	struct sed_key key;
 	struct opal_user_lr_setup setup = { };
 	int fd = dev->fd;
-	int ret = 0;
 
 	if (range_start == ~0|| range_length == ~0 || (!sum && user == NULL) ||
-	    password == NULL) {
+	    key == NULL) {
 		SEDCLI_DEBUG_MSG("Incorrect parameters, please try again\n");
 		return -EINVAL;
 	}
@@ -190,12 +188,8 @@ int sedopal_setuplr(struct sed_device *dev, const char *password, uint8_t key_le
 	setup.range_start = range_start;
 	setup.range_length = range_length;
 
-	ret = sed_key_init(&key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-	setup.session.opal_key.key_len = key.len;
-	memcpy(setup.session.opal_key.key, key.key, setup.session.opal_key.key_len);
+	setup.session.opal_key.key_len = key->len;
+	memcpy(setup.session.opal_key.key, key->key, setup.session.opal_key.key_len);
 
 	if (setup.session.opal_key.key_len == 0) {
 		setup.session.opal_key.key_len = 1;
@@ -207,18 +201,10 @@ int sedopal_setuplr(struct sed_device *dev, const char *password, uint8_t key_le
 }
 
 
-int sedopal_add_usr_to_lr(struct sed_device *dev, const char *key, uint8_t key_len,
+int sedopal_add_usr_to_lr(struct sed_device *dev, const struct sed_key *key,
 			const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr)
 {
-	struct sed_key disk_key;
-	int ret;
-
-	ret = sed_key_init(&disk_key, key, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	return do_generic_lkul(dev->fd, &disk_key, SED_ADMIN1, lock_type, lr,
+	return do_generic_lkul(dev->fd, key, SED_ADMIN1, lock_type, lr,
 				false, IOC_OPAL_ADD_USR_TO_LR);
 }
 
@@ -284,15 +270,13 @@ int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct 
 	return ioctl(fd, IOC_OPAL_SET_PW, &pw);
 }
 
-int sedopal_enable_user(struct sed_device *dev, const char *password, uint8_t key_len,
+int sedopal_enable_user(struct sed_device *dev, const struct sed_key *key,
                         const char *user)
 {
-	struct sed_key key;
 	struct opal_session_info usr = { };
 	int fd = dev->fd;
-	int ret = 0;
 
-	if (user == NULL || password == NULL) {
+	if (user == NULL || key == NULL) {
 		SEDCLI_DEBUG_PARAM("Invalid arguments for %s\n", __func__);
 		return -EINVAL;
 	}
@@ -305,27 +289,21 @@ int sedopal_enable_user(struct sed_device *dev, const char *password, uint8_t ke
 		return -EINVAL;
 	}
 
-	ret = sed_key_init(&key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-	usr.opal_key.key_len = key.len;
-	memcpy(usr.opal_key.key, key.key, usr.opal_key.key_len);
+	usr.opal_key.key_len = key->len;
+	memcpy(usr.opal_key.key, key->key, usr.opal_key.key_len);
 
 	usr.opal_key.lr = 0;
 
 	return ioctl(fd, IOC_OPAL_ACTIVATE_USR, &usr);
 }
 
-int sedopal_erase_lr(struct sed_device *dev, const char *password, uint8_t key_len,
+int sedopal_erase_lr(struct sed_device *dev, const struct sed_key *key,
                      const char *user, uint8_t lr, bool sum)
 {
-	struct sed_key key;
 	struct opal_session_info session = { };
 	int fd = dev->fd;
-	int ret = 0;
 
-	if ((!sum && user == NULL) || password == NULL) {
+	if ((!sum && user == NULL) || key == NULL) {
 		SEDCLI_DEBUG_MSG("Need to supply user, lock type and password!\n");
 		return -EINVAL;
 	}
@@ -335,27 +313,21 @@ int sedopal_erase_lr(struct sed_device *dev, const char *password, uint8_t key_l
 		if(sed_get_user(user, &session.who))
 			return -EINVAL;
 
-	ret = sed_key_init(&key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-	session.opal_key.key_len = key.len;
-	memcpy(session.opal_key.key, key.key, session.opal_key.key_len);
+	session.opal_key.key_len = key->len;
+	memcpy(session.opal_key.key, key->key, session.opal_key.key_len);
 
 	session.opal_key.lr = lr;
 
 	return ioctl(fd, IOC_OPAL_ERASE_LR, &session);
 }
 
-int sedopal_secure_erase_lr(struct sed_device *dev, const char *password, uint8_t key_len,
+int sedopal_secure_erase_lr(struct sed_device *dev, const struct sed_key *key,
                             const char *user, uint8_t lr, bool sum)
 {
-	struct sed_key key;
 	struct opal_session_info usr = { };
 	int fd = dev->fd;
-	int ret = 0;
 
-	if (user == NULL || password == NULL) {
+	if (user == NULL || key == NULL) {
 		SEDCLI_DEBUG_PARAM("Invalid arguments for %s\n", __func__);
 		return -EINVAL;
 	}
@@ -363,12 +335,8 @@ int sedopal_secure_erase_lr(struct sed_device *dev, const char *password, uint8_
 	if(sed_get_user(user, &usr.who))
 		return -EINVAL;
 
-	ret = sed_key_init(&key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-	usr.opal_key.key_len = key.len;
-	memcpy(usr.opal_key.key, key.key, usr.opal_key.key_len);
+	usr.opal_key.key_len = key->len;
+	memcpy(usr.opal_key.key, key->key, usr.opal_key.key_len);
 
 
 	usr.opal_key.lr = 0;
@@ -398,18 +366,12 @@ int sedopal_reverttper(struct sed_device *dev, const struct sed_key *key,
 	return do_generic_opal(fd, key, ioctl_code);
 }
 
-int sedopal_save(struct sed_device *dev, const char *password, uint8_t key_len,
+int sedopal_save(struct sed_device *dev, const struct sed_key *key,
 				const char *user, enum SED_ACCESS_TYPE lock_type, uint8_t lr, bool sum)
 {
-	struct sed_key disk_key;
-	int fd = dev->fd, ret;
+	int fd = dev->fd;
 
-	ret = sed_key_init(&disk_key, password, key_len);
-	if (ret) {
-		return ret;
-	}
-
-	return do_generic_lkul(fd, &disk_key, SED_ADMIN1, lock_type, lr, sum, IOC_OPAL_SAVE);
+	return do_generic_lkul(fd, key, SED_ADMIN1, lock_type, lr, sum, IOC_OPAL_SAVE);
 }
 
 void sedopal_deinit(struct sed_device *dev)

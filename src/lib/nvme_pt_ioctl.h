@@ -352,15 +352,15 @@ int opal_revertlsp_pt(struct sed_device *dev, const struct sed_key *key,
 int opal_activate_lsp_pt(struct sed_device *dev, const struct sed_key *key,
 		char *lr_str, bool sum);
 
-int opal_add_usr_to_lr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+int opal_add_usr_to_lr_pt(struct sed_device *dev, const struct sed_key *key,
 		const char *usr, enum SED_ACCESS_TYPE lock_type, uint8_t lr);
 
-int opal_activate_usr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+int opal_activate_usr_pt(struct sed_device *dev, const struct sed_key *key,
 		const char *user);
 
 int opal_setup_global_range_pt(struct sed_device *dev, const struct sed_key *key);
 
-int opal_setuplr_pt(struct sed_device *dev, const char *key, uint8_t key_len,
+int opal_setuplr_pt(struct sed_device *dev, const struct sed_key *key,
 		const char *user, uint8_t lr, size_t range_start,
 		size_t range_length, bool sum, bool RLE, bool WLE);
 
@@ -379,11 +379,11 @@ int opal_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
 int opal_write_shadow_mbr_pt(struct sed_device *dev, const struct sed_key *key,
 			const uint8_t *from, uint32_t size, uint32_t offset);
 
-int opal_eraselr_pt(struct sed_device *dev, const char *password,
-		uint8_t key_len, const char *user, const uint8_t lr, bool sum);
+int opal_eraselr_pt(struct sed_device *dev, const struct sed_key *key,
+		const char *user, const uint8_t lr, bool sum);
 
-int opal_rw_datastr_tbl(struct sed_device *dev, const char *password,
-			uint8_t key_len, const uint64_t data, uint64_t size,
+int opal_rw_datastr_tbl(struct sed_device *dev, const struct sed_key *key,
+			const uint64_t data, uint64_t size,
 			uint64_t offset, bool flags);
 
 int opal_ds_read(struct sed_device *, enum SED_AUTHORITY, const struct sed_key *, uint8_t *to, uint32_t size, uint32_t offset);
