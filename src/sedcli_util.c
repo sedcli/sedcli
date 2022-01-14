@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <termios.h>
 #include <errno.h>
+#include <string.h>
 
 #include <sys/syslog.h>
 #include <sys/mman.h>
@@ -111,6 +112,7 @@ void *alloc_locked_buffer(size_t size)
 	if (!buf)
 		return NULL;
 
+	memset(buf, 0, 1);	/* silence GCC warning (error) */
 	status = mlock(buf, size);
 
 	if (status) {
