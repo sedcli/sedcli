@@ -41,6 +41,7 @@ static int mbr_control_handle_opts(char *opt, char **arg);
 static int write_mbr_handle_opts(char *opt, char **arg);
 static int blocksid_handle_opts(char *opt, char **arg);
 static int unlock_handle_opts(char *opt, char **arg);
+static int provision_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -55,6 +56,7 @@ static int handle_mbr_control(void);
 static int handle_write_mbr(void);
 static int handle_blocksid(void);
 static int handle_unlock(void);
+static int handle_provision(void);
 
 #define COMMON_OPTS	\
 	{'q', "quiet", "Suppress informative messages", 0},	\
@@ -143,6 +145,13 @@ static cli_option blocksid_opts[] = {
 };
 
 static cli_option unlock_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
+	COMMON_OPTS,
+	{0}
+};
+
+static cli_option provision_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
@@ -269,6 +278,17 @@ static cli_command sedcli_commands[] = {
 		.options = unlock_opts,
 		.command_handle_opts = unlock_handle_opts,
 		.handle = handle_unlock,
+		.flags = 0,
+		.help = NULL
+	},
+	{
+		.name = "provision",
+		.short_name = 'T',
+		.desc = "Provision (Take over) drive for locking",
+		.long_desc = "Perform provisioning steps to setup locking on drive.",
+		.options = provision_opts,
+		.command_handle_opts = provision_handle_opts,
+		.handle = handle_provision,
 		.flags = 0,
 		.help = NULL
 	},
@@ -680,6 +700,21 @@ int blocksid_handle_opts(char *opt, char **arg)
 }
 
 int unlock_handle_opts(char *opt, char **arg)
+{
+	int ret = 0;
+
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
+	}
+
+	return 0;
+}
+
+int provision_handle_opts(char *opt, char **arg)
 {
 	int ret = 0;
 
@@ -1428,6 +1463,51 @@ static int handle_unlock(void)
 print_deinit:
 	print_sed_status(ret);
 deinit:
+	sed_deinit(dev);
+	return ret;
+}
+
+static int handle_provision(void)
+{
+	int ret = 0;
+	struct sed_device *dev = NULL;
+
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error initializing device\n", opts->dev_path);
+		return -EINVAL;
+	}
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error getting password\n", opts->dev_path);
+		goto print_deinit;
+	}
+	ret = sed_takeownership(dev, &opts->pwd);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error taking ownership\n", opts->dev_path);
+		goto print_deinit;
+	}
+	ret = sed_activatelsp(dev, &opts->pwd);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error activating locking SP\n", opts->dev_path);
+		goto print_deinit;
+	}
+	ret = sed_setup_global_range(dev, &opts->pwd);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error setting up global locking range\n", opts->dev_path);
+		goto print_deinit;
+	}
+	ret = sed_shadowmbr(dev, &opts->pwd, true);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error enabling shadow MBR\n", opts->dev_path);
+		goto print_deinit;
+	}
+	ret = sed_mbrdone(dev, &opts->pwd, true);
+	if (ret)
+		sedcli_printf(LOG_ERR, "%s: Error setting MBRDone\n", opts->dev_path);
+
+print_deinit:
+	print_sed_status(ret);
 	sed_deinit(dev);
 	return ret;
 }

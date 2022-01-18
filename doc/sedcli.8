@@ -140,6 +140,21 @@ Performs the equivalent of the following commands:
 3. (no equivalent) Trigger re-read of partition table.
 
 .TP
+\fB\-T -d <device> [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-provision --device <device> [--key-source <pwd-opts>]\fR
+Perform operations to provision a drive for locking.
+Performs the equivalent of the following commands:
+.IP
+1. (sedcli -O) take Ownership of the device.
+.IP
+2. (sedcli -A) Activate locking SP.
+.IP
+3. (sedcli -S) Setup global locking range
+.IP
+4. (sedcli -M -e true -m true) enable MBRShadow and set MBRDone.
+
+.TP
 \fB\-V\fR
 .TQ
 \fB\-\-version\fR
