@@ -101,6 +101,27 @@ int sedopal_takeownership(struct sed_device *dev, const struct sed_key *key)
 	return do_generic_opal(fd, key, IOC_OPAL_TAKE_OWNERSHIP);
 }
 
+int sedopal_write_shadow_mbr(struct sed_device *dev, const struct sed_key *key,
+		const uint8_t *from, uint32_t size, uint32_t offset)
+{
+	int fd = dev->fd;
+	struct opal_shadow_mbr opal_wr_mbr = {
+		.data = (__u64)from,
+		.size = size,
+		.offset = offset,
+	};
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("Need to supply password!\n");
+		return -EINVAL;
+	}
+
+	opal_wr_mbr.key.key_len = key->len;
+	memcpy(opal_wr_mbr.key.key, key->key, opal_wr_mbr.key.key_len);
+
+	return ioctl(fd, IOC_OPAL_WRITE_SHADOW_MBR, &opal_wr_mbr);
+}
+
 int sedopal_activatelsp(struct sed_device *dev, const struct sed_key *key, char *lr_str, bool sum)
 {
 	int fd = dev->fd;

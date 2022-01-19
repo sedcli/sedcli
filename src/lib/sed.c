@@ -57,7 +57,7 @@ struct opal_interface {
 	take_ownership ownership_fn;
 	get_msid_pin get_msid_pin_fn;
 	reverttper revert_fn;
-	revertsp revertsp_fn;
+	revertsp revertsp_fn;	/* (i.e. revertlsp_fn) no cli option */
 	activate_lsp activatelsp_fn;
 	setup_global_range setup_global_range_fn;
 	add_usr_to_lr addusr_to_lr_fn;
@@ -86,7 +86,7 @@ static struct opal_interface opal_if = {
 	.get_msid_pin_fn = NULL,
 	.revert_fn = sedopal_reverttper,
 	.activatelsp_fn = sedopal_activatelsp,
-	.revertsp_fn = NULL,
+	.revertsp_fn = NULL,	/* (i.e. revertlsp_fn) no cli option */
 	.setup_global_range_fn = sedopal_setup_global_range,
 	.addusr_to_lr_fn = sedopal_add_usr_to_lr,
 	.activate_usr_fn = sedopal_enable_user,
@@ -95,7 +95,7 @@ static struct opal_interface opal_if = {
 	.set_pwd_fn = sedopal_setpw,
 	.shadow_mbr_fn = sedopal_shadowmbr,
 	.mbr_done_fn = sedopal_mbrdone,
-	.write_shadow_mbr_fn = NULL,
+	.write_shadow_mbr_fn = sedopal_write_shadow_mbr,
 	.eraselr_fn = sedopal_erase_lr,
 	.ds_add_anybody_get_fn = NULL,
 	.ds_read_fn = NULL,
@@ -114,7 +114,7 @@ static struct opal_interface nvmept_if = {
 	.get_msid_pin_fn = opal_get_msid_pin_pt,
 	.revert_fn	= opal_reverttper_pt,
 	.activatelsp_fn	= opal_activate_lsp_pt,
-	.revertsp_fn	= opal_revertlsp_pt,
+	.revertsp_fn	= opal_revertlsp_pt,	/* no cli option */
 	.setup_global_range_fn = opal_setup_global_range_pt,
 	.addusr_to_lr_fn= opal_add_usr_to_lr_pt,
 	.activate_usr_fn= opal_activate_usr_pt,
