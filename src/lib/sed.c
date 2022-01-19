@@ -9,6 +9,7 @@
 #include <string.h>
 #include <limits.h>
 #include <linux/version.h>
+#include <sys/ioctl.h>
 
 #include "nvme_pt_ioctl.h"
 #include "sed_ioctl.h"
@@ -414,4 +415,9 @@ const char *sed_error_text(int sed_status)
 	}
 
 	return sed_statuses[sed_status];
+}
+
+int sed_dev_ioctl(struct sed_device *dev, unsigned long request, unsigned long parm)
+{
+	return ioctl(dev->fd, request, parm);
 }

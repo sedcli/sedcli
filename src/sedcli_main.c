@@ -12,6 +12,7 @@
 #include <limits.h>
 #include <unistd.h>
 #include <keyutils.h>
+#include <linux/fs.h>	/* for BLKRRPART */
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -39,6 +40,7 @@ static int setpw_handle_opts(char *opt, char **arg);
 static int mbr_control_handle_opts(char *opt, char **arg);
 static int write_mbr_handle_opts(char *opt, char **arg);
 static int blocksid_handle_opts(char *opt, char **arg);
+static int unlock_handle_opts(char *opt, char **arg);
 
 static int handle_sed_discv(void);
 static int handle_ownership(void);
@@ -52,6 +54,7 @@ static int handle_setpw(void);
 static int handle_mbr_control(void);
 static int handle_write_mbr(void);
 static int handle_blocksid(void);
+static int handle_unlock(void);
 
 #define COMMON_OPTS	\
 	{'q', "quiet", "Suppress informative messages", 0},	\
@@ -135,6 +138,13 @@ static cli_option write_mbr_opts[] = {
 static cli_option blocksid_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'r', "hwreset", "Clear events by setting Hardware Reset flag. Allowed values: 1/0", 1, "FMT", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
+	{0}
+};
+
+static cli_option unlock_opts[] = {
+	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
@@ -248,6 +258,17 @@ static cli_command sedcli_commands[] = {
 		.options = blocksid_opts,
 		.command_handle_opts = blocksid_handle_opts,
 		.handle = handle_blocksid,
+		.flags = 0,
+		.help = NULL
+	},
+	{
+		.name = "unlock",
+		.short_name = 'U',
+		.desc = "Unlock drive and prepare for use",
+		.long_desc = "Unlock drive, set MBRDone, and re-read partition table.",
+		.options = unlock_opts,
+		.command_handle_opts = unlock_handle_opts,
+		.handle = handle_unlock,
 		.flags = 0,
 		.help = NULL
 	},
@@ -651,6 +672,21 @@ int blocksid_handle_opts(char *opt, char **arg)
 		}
 		hwreset_flag = atoi(arg[0]);
 		opts->hardware_reset = (hwreset_flag == 1) ? true : false;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
+	}
+
+	return 0;
+}
+
+int unlock_handle_opts(char *opt, char **arg)
+{
+	int ret = 0;
+
+	if (!strcmp(opt, "device")) {
+		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -1310,6 +1346,89 @@ static int handle_blocksid(void)
 	print_sed_status(ret);
 	sed_deinit(dev);
 
+	return ret;
+}
+
+static int handle_unlock(void)
+{
+	int ret = 0;
+	struct sed_device *dev = NULL;
+	struct sed_opal_device_discv discv = { 0 };
+	uint8_t flags;
+	bool locked, mbr;
+
+#ifdef CONFIG_OPAL_DRIVER_DISCOVERY
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
+#else
+	/*
+	 * special case until sed_ioctl() supports discovery,
+	 * initialize device for pass-through.
+	 */
+	ret = sed_init(&dev, opts->dev_path, true);
+#endif
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error initializing device\n", opts->dev_path);
+		return -EINVAL;
+	}
+	ret = sed_dev_discovery(dev, &discv);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error getting device state.\n", opts->dev_path);
+		goto deinit;
+	}
+	if (!(discv.sed_lvl0_discv.features & SED_L0DISC_LOCKING_DESC))
+		goto print_deinit;
+	flags = discv.sed_lvl0_discv.locking_feat;
+	if (!(flags & SED_L0DISC_LOCKING_FEAT_SUPP) ||
+			!(flags & SED_L0DISC_LOCKING_FEAT_LOCKING_EN))
+		goto print_deinit;
+	locked = (flags & SED_L0DISC_LOCKING_FEAT_LOCKED);
+	mbr = (flags & SED_L0DISC_LOCKING_FEAT_MBR_EN) &&
+		!(flags & SED_L0DISC_LOCKING_FEAT_MBR_DONE);
+	if (!locked && !mbr)
+		goto print_deinit;
+#ifndef CONFIG_OPAL_DRIVER_DISCOVERY
+	if (!opts->pass_thru) {
+		/*
+		 * until sed_ioctl() supports discovery, must re-init device for sed_ioctl().
+		 */
+		sed_deinit(dev);
+		dev = NULL;
+		ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
+		if (ret) {
+			sedcli_printf(LOG_ERR, "%s: Error initializing device\n", opts->dev_path);
+			return -EINVAL;
+		}
+	}
+#endif
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "%s: Error getting password\n", opts->dev_path);
+		goto deinit;
+	}
+	if (locked) {
+		ret = sed_lock_unlock(dev, &opts->pwd, SED_RW_ACCESS);
+		if (ret) {
+			sedcli_printf(LOG_ERR, "%s: Error setting lock RW\n", opts->dev_path);
+			goto print_deinit;
+		}
+	}
+	if (mbr) {
+		ret = sed_mbrdone(dev, &opts->pwd, true);
+		if (ret) {
+			sedcli_printf(LOG_ERR, "%s: Error setting MBRDone\n", opts->dev_path);
+			goto print_deinit;
+		}
+	}
+	ret = sed_dev_ioctl(dev, BLKRRPART, 0);
+	if (ret < 0) {
+		ret = -errno;
+		sedcli_printf(LOG_ERR, "%s: Error re-reading partition info\n", opts->dev_path);
+		goto print_deinit;
+	}
+print_deinit:
+	print_sed_status(ret);
+deinit:
+	sed_deinit(dev);
 	return ret;
 }
 

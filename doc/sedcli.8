@@ -125,6 +125,21 @@ MBR shadow should be enabled for the PBA to take effect.
 Issue BlockSID authentication command with Clear Event flag via --hwreset option.
 
 .TP
+\fB\-U -d <device> [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-unlock --device <device> [--key-source <pwd-opts>]\fR
+Perform operations to bring a locked drive online,
+typically executed as part of a udev rule.
+Operations are only performed if drive status indicates they are needed.
+Performs the equivalent of the following commands:
+.IP
+1. (sedcli -L -t RW) Set global locking range to RW.
+.IP
+2. (sedcli -M -m true) Set MBRDone.
+.IP
+3. (no equivalent) Trigger re-read of partition table.
+
+.TP
 \fB\-V\fR
 .TQ
 \fB\-\-version\fR
