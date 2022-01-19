@@ -471,13 +471,15 @@ static void print_sed_status(int status)
 			sedcli_printf(LOG_ERR, "Couldn't determine device state\n");
 		} else if (status == -ENOMEM) {
 			sedcli_printf(LOG_ERR, "No memory\n");
+		} else if (status == -EOPNOTSUPP) {
+			sedcli_printf(LOG_ERR, "Not supported\n");
 		} else {
-			sedcli_printf(LOG_ERR, "Unknown error\n");
+			sedcli_printf(LOG_ERR, "Unknown error: %d\n", status);
 		}
 	} else {
 		sed_status = sed_error_text(status);
 		if (sed_status == NULL)
-			sedcli_printf(LOG_ERR, "Unknown Error\n");
+			sedcli_printf(LOG_ERR, "Unknown Error: %d\n", status);
 		else
 			sedcli_printf((status == SED_SUCCESS) ? LOG_INFO : LOG_ERR,
 					"%s\n", sed_status);
