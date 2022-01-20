@@ -23,20 +23,6 @@
 #include "sedcli_log.h"
 #include "opal_parser.h"
 
-#define OPAL_FEAT_TPER       0x0001
-#define OPAL_FEAT_LOCKING    0x0002
-#define OPAL_FEAT_GEOMETRY   0x0003
-#define OPAL_FEAT_DATASTORE  0x0202
-#define OPAL_FEAT_SUM        0x0201
-#define OPAL_FEAT_OPALV100   0x0200
-#define OPAL_FEAT_OPALV200   0x0203
-#define OPAL_FEAT_PYRITEV100 0x0302
-#define OPAL_FEAT_PYRITEV200 0x0303
-#define OPAL_FEAT_RUBY       0x0304
-#define OPAL_FEAT_BLOCKSID   0x0402
-#define OPAL_FEAT_CNL        0x0403
-#define OPAL_FEAT_DATA_RM    0x0404
-
 #define SUM_SELECTION_LIST   0x060000
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
@@ -218,196 +204,11 @@ static int get_opal_auth_uid(enum SED_AUTHORITY auth)
 	return sed2opal_map[auth];
 }
 
-static void copy_tper_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->tper_feat = feat->feat.tper.flags;
-
-	discv->features |= SED_L0DISC_TPER_DESC;
-}
-
-static void copy_locking_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->locking_feat = feat->feat.locking.flags;
-
-	discv->features |= SED_L0DISC_LOCKING_DESC;
-}
-
-static void copy_geometry_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_geo.flags = feat->feat.geo.flags;
-	discv->sed_geo.alignmnt_granlrty = be64toh(feat->feat.geo.alignmnt_granlrty);
-	discv->sed_geo.logical_blk_sz = be32toh(feat->feat.geo.logical_blk_sz);
-	discv->sed_geo.lowest_aligned_lba = be64toh(feat->feat.geo.lowest_aligned_lba);
-
-	discv->features |= SED_L0DISC_GEOMETRY_DESC;
-}
-
-static void copy_datastr_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_datastr.datastr_tbl_size_align = be32toh(feat->feat.datastr.datastr_tbl.datastr_tbl_size_align);
-	discv->sed_datastr.max_num_datastr_tbls = be16toh(feat->feat.datastr.datastr_tbl.max_num_datastr_tbls);
-	discv->sed_datastr.max_total_size_datstr_tbls = be32toh(feat->feat.datastr.datastr_tbl.max_total_size_datstr_tbls);
-
-	discv->features |= SED_L0DISC_DATASTORE_DESC;
-}
-
-static void copy_sum_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->features |= SED_L0DISC_SUM_DESC;
-}
-
-static void copy_opalv100_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_opalv100.v1_base_comid = be16toh(feat->feat.opalv100.v1_base_comid);
-	discv->sed_opalv100.v1_comid_num = be16toh(feat->feat.opalv100.v1_comid_num);
-
-	discv->features |= SED_L0DISC_OPALV100_DESC;
-}
-
-static void copy_opalv200_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_opalv200.base_comid = be16toh(feat->feat.opalv200.base_comid);
-	discv->sed_opalv200.comid_num = be16toh(feat->feat.opalv200.comid_num);
-	discv->sed_opalv200.admin_lp_auth_num = be16toh(feat->feat.opalv200.admin_lp_auth_num);
-	discv->sed_opalv200.user_lp_auth_num = be16toh(feat->feat.opalv200.user_lp_auth_num);
-	discv->sed_opalv200.init_pin = feat->feat.opalv200.init_pin;
-	discv->sed_opalv200.revert_pin = feat->feat.opalv200.revert_pin;
-	discv->sed_opalv200.flags = feat->feat.opalv200.flags;
-
-	discv->com_id = discv->sed_opalv200.base_comid;
-	discv->features |= SED_L0DISC_OPALV200_DESC;
-}
-
-static void copy_pyritev100_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_pyritev100.base_comid = be16toh(feat->feat.pyritev100.base_comid);
-	discv->sed_pyritev100.comid_num = be16toh(feat->feat.pyritev100.comid_num);
-	discv->sed_pyritev100.init_pin = feat->feat.pyritev100.init_pin;
-	discv->sed_pyritev100.revert_pin = feat->feat.pyritev100.revert_pin;
-
-	discv->com_id = discv->sed_pyritev100.base_comid;
-	discv->features |= SED_L0DISC_PYRITEV100_DESC;
-}
-
-static void copy_pyritev200_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_pyritev200.base_comid = be16toh(feat->feat.pyritev200.base_comid);
-	discv->sed_pyritev200.comid_num = be16toh(feat->feat.pyritev200.comid_num);
-	discv->sed_pyritev200.init_pin = feat->feat.pyritev200.init_pin;
-	discv->sed_pyritev200.revert_pin = feat->feat.pyritev200.revert_pin;
-
-	discv->com_id = discv->sed_pyritev200.base_comid;
-	discv->features |= SED_L0DISC_PYRITEV200_DESC;
-}
-
-static void copy_ruby_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_ruby.base_comid = be16toh(feat->feat.ruby.base_comid);
-	discv->sed_ruby.comid_num = be16toh(feat->feat.ruby.comid_num);
-	discv->sed_ruby.admin_lp_auth_num = be16toh(feat->feat.ruby.admin_lp_auth_num);
-	discv->sed_ruby.user_lp_auth_num = be16toh(feat->feat.ruby.user_lp_auth_num);
-	discv->sed_ruby.init_pin = feat->feat.ruby.init_pin;
-	discv->sed_ruby.revert_pin = feat->feat.ruby.revert_pin;
-	discv->sed_ruby.flags = feat->feat.ruby.flags;
-
-	discv->com_id = be16toh(feat->feat.ruby.base_comid);
-	discv->features |= SED_L0DISC_RUBY_DESC;
-}
-
-static void copy_blocksid_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_blocksid.flags1 = feat->feat.blocksid.flags1;
-	discv->sed_blocksid.flags2 = feat->feat.blocksid.flags2;
-
-	discv->features |= SED_L0DISC_BLOCKSID_DESC;
-}
-
-static void copy_data_rm_mechanism_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	int i = 0;
-
-	discv->sed_data_rm_mechanism.flags = feat->feat.data_rm_mechanism.flags;
-	discv->sed_data_rm_mechanism.supp_data_rm_mechanism = feat->feat.data_rm_mechanism.supp_data_rm_mechanism;
-	discv->sed_data_rm_mechanism.time_formats = feat->feat.data_rm_mechanism.time_formats;
-
-	for (i = 0; i < 6; i++) {
-		discv->sed_data_rm_mechanism.data_rm_time[i] = feat->feat.data_rm_mechanism.data_rm_time[i];
-	}
-
-	discv->features |= SED_L0DISC_DATA_RM_DESC;
-}
-
-static void copy_cnl_feat(struct sed_opal_level0_discovery *discv,
-		struct opal_level0_feat_desc *feat)
-{
-	discv->sed_cnl.flags = feat->feat.cnl.flags;
-	discv->sed_cnl.max_key_count = be32toh(feat->feat.cnl.max_key_count);
-	discv->sed_cnl.max_ranges_per_ns = be32toh(feat->feat.cnl.max_ranges_per_ns);
-	discv->sed_cnl.unused_key_count = be32toh(feat->feat.cnl.unused_key_count);
-
-	discv->features |= SED_L0DISC_CNL_DESC;
-}
-
-typedef void (*copy)(struct sed_opal_level0_discovery *, struct opal_level0_feat_desc *);
-
-struct opal_disc_copy_fn {
-	int feat_code;
-	copy copy_fn;
-};
-
-static struct opal_disc_copy_fn opal_disc_copy_fns[] = {
-	{.feat_code = OPAL_FEAT_TPER, .copy_fn = copy_tper_feat},
-	{.feat_code = OPAL_FEAT_LOCKING, .copy_fn = copy_locking_feat},
-	{.feat_code = OPAL_FEAT_GEOMETRY, .copy_fn = copy_geometry_feat},
-	{.feat_code = OPAL_FEAT_DATASTORE, .copy_fn = copy_datastr_feat},
-	{.feat_code = OPAL_FEAT_SUM, .copy_fn = copy_sum_feat},
-	{.feat_code = OPAL_FEAT_OPALV100, .copy_fn = copy_opalv100_feat},
-	{.feat_code = OPAL_FEAT_OPALV200, .copy_fn = copy_opalv200_feat},
-	{.feat_code = OPAL_FEAT_PYRITEV100, .copy_fn = copy_pyritev100_feat},
-	{.feat_code = OPAL_FEAT_PYRITEV200, .copy_fn = copy_pyritev200_feat},
-	{.feat_code = OPAL_FEAT_RUBY, .copy_fn = copy_ruby_feat},
-	{.feat_code = OPAL_FEAT_BLOCKSID, .copy_fn = copy_blocksid_feat},
-	{.feat_code = OPAL_FEAT_DATA_RM, .copy_fn = copy_data_rm_mechanism_feat},
-	{.feat_code = OPAL_FEAT_CNL, .copy_fn = copy_cnl_feat},
-};
-
-static copy opal_get_copy_fn(int feat_code)
-{
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(opal_disc_copy_fns); i++) {
-		if (opal_disc_copy_fns[i].feat_code == feat_code) {
-			return opal_disc_copy_fns[i].copy_fn;
-		}
-	}
-
-	return NULL;
-}
-
 static int opal_level0_disc_pt(struct sed_device *device)
 {
-	struct opal_level0_header *header;
-	struct opal_level0_feat_desc *desc;
 	struct opal_device *dev = device->priv;
-	struct sed_opal_level0_discovery *discv = &device->discv.sed_lvl0_discv;
-	copy copy_fn;
 	int fd = device->fd;
-
-	int ret, pos, end, feat_no;
-	uint16_t feat_code;
-	uint8_t *buffer;
+	int ret = 0;
 
 	ret = opal_recv(fd, TCG_SECP_01, OPAL_DISCOVERY_COMID, dev->resp_buf,
 			dev->resp_buf_size);
@@ -416,31 +217,10 @@ static int opal_level0_disc_pt(struct sed_device *device)
 		return ret;
 	}
 
-	buffer = dev->resp_buf;
-
-	header = (struct opal_level0_header *) buffer;
-
-	/* processing level 0 features */
-	pos = 0;
-	feat_no = 0;
-	pos += sizeof(*header);
-	end = be32toh(header->len);
-
-	while (pos < end) {
-		desc = (struct opal_level0_feat_desc *) (buffer + pos);
-		feat_code = be16toh(desc->code);
-
-		pos += desc->len + 4;
-
-		copy_fn = opal_get_copy_fn(feat_code);
-
-		if (copy_fn != NULL) {
-			copy_fn(discv, desc);
-			feat_no++;
-		}
-
-	}
-	dev->comid = discv->com_id;
+	ret = sed_get_discv(&device->discv.sed_lvl0_discv, dev->resp_buf);
+	if (ret)
+		return ret;
+	dev->comid = device->discv.sed_lvl0_discv.com_id;
 
 	return 0;
 }

@@ -195,6 +195,24 @@ EOF
 	else
 		print_status "IOC_OPAL_REVERT_LSP support" "no"
 	fi
+	# Test for IOC_OPAL_DISCOVERY
+	cat > $TMP_SRC <<EOF
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <linux/sed-opal.h>
+
+int main(int argc, char **argv)
+{
+	long cmd = IOC_OPAL_DISCOVERY;
+	return 0;
+}
+EOF
+	if test_compile "IOC_OPAL_DISCOVERY" "-c" ""; then
+		print_status "IOC_OPAL_DISCOVERY support" "yes"
+		app_config_h "#define CONFIG_OPAL_DRIVER_DISCOVERY"
+	else
+		print_status "IOC_OPAL_DISCOVERY support" "no"
+	fi
 else
 	print_status "SED interface(s)" "NVMe-PT (opal-driver not available)"
 fi

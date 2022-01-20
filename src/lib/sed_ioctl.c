@@ -25,6 +25,8 @@
 #include "sed_util.h"
 #include "sedcli_log.h"
 
+#define IO_BUFFER_LENGTH 2048	/* from block/sed-opal.c */
+
 int sedopal_init(struct sed_device *dev, const char *device_path)
 {
 	int ret = 0;
@@ -123,6 +125,35 @@ int sedopal_lock_unlock(struct sed_device *dev, const struct sed_key *key,
 
 	return do_generic_lkul(fd, key, SED_ADMIN1, lock_type, 0,
 			false, IOC_OPAL_LOCK_UNLOCK);
+}
+
+int sedopal_dev_discv_info(struct sed_device *dev,
+			struct sed_opal_device_discv *discv)
+{
+#ifdef CONFIG_OPAL_DRIVER_DISCOVERY
+	int fd = dev->fd;
+	struct opal_discovery dsc = { };
+	uint8_t buff[IO_BUFFER_LENGTH];
+	int ret;
+
+	if (dev == NULL || discv == NULL)
+		return -EINVAL;
+
+	dsc.data = (__u64)buff;
+	dsc.size = sizeof(buff);
+
+	ret = ioctl(fd, IOC_OPAL_DISCOVERY, &dsc);
+	if (ret < 0)
+		return -errno;
+	if (ret > dsc.size) {
+		SEDCLI_DEBUG_MSG("Discovery data too large\n");
+		return -E2BIG;
+	}
+	memset(&discv->sed_tper_props, 0, sizeof(discv->sed_tper_props));
+	return sed_get_discv(&discv->sed_lvl0_discv, buff);
+#else
+	return -EOPNOTSUPP;
+#endif
 }
 
 int sedopal_takeownership(struct sed_device *dev, const struct sed_key *key)

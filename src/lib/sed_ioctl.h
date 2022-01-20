@@ -16,6 +16,9 @@ int sedopal_init(struct sed_device *dev, const char *device_path);
 int sedopal_lock_unlock(struct sed_device *dev, const struct sed_key *key,
 						enum SED_ACCESS_TYPE lock_type);
 
+int sedopal_dev_discv_info(struct sed_device *dev,
+			struct sed_opal_device_discv *discv);
+
 int sedopal_takeownership(struct sed_device *dev, const struct sed_key *key);
 
 int sedopal_activatelsp(struct sed_device *dev, const struct sed_key *key, char *lr_str, bool sum);

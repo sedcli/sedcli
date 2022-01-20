@@ -26,4 +26,6 @@ int open_dev(const char *dev);
 
 int sed_get_user(const char *user, uint32_t *who);
 
+int sed_get_discv(struct sed_opal_level0_discovery *discv, uint8_t *dest);
+
 #endif /* _SED_UTIL_H_ */
