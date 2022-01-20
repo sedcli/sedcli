@@ -92,6 +92,7 @@ enum SED_AUTHORITY {
 
 enum sed_key_src {
 	SED_KEY_FROMUSER = 0,	/* get key from user (stdio) */
+	SED_KEY_KEYRING,	/* use kernel keyring via sed_ioctl() */
 };
 
 struct sed_device;
@@ -99,7 +100,7 @@ struct sed_device;
 struct sed_key_options {
 	enum sed_key_src key_src;	/* how to get key */
 	union {
-		void *_unused;
+		long key_sn;
 	};
 };
 
@@ -193,7 +194,10 @@ struct sed_key {
 	uint8_t key[SED_MAX_KEY_LEN];
 	uint8_t len;
 	enum sed_key_src src;
-	void *param;	/* depends on src */
+	union {
+		void *param;	/* depends on src */
+		long key_sn;	/* for SED_KEY_KEYRING */
+	};
 };
 
 struct sed_opal_lockingrange {

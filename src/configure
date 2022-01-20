@@ -182,6 +182,26 @@ else
 fi
 # ==========================================
 
+# ==========================================
+# Handle keyutils library requirement
+cat > $TMP_SRC <<EOF
+#include <stdio.h>
+#include <keyutils.h>
+
+int main(int argc, char **argv)
+{
+	key_serial_t sn = keyctl_search(0, NULL, NULL, 0);
+	return 0;
+}
+EOF
+if test_compile "keyutils library" "" "-lkeyutils" ""; then
+	print_status "keyutils library" "yes"
+else
+	print_status "keyutils library" "no"
+	echo "error: keyutils development package must be installed"
+	exit 1
+fi
+# ==========================================
 
 print_summary
 

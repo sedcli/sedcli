@@ -64,11 +64,11 @@ all: $(ALL_TARGETS)
 
 $(TARGET)-static: $(TARGET).a $(LIB).a
 	@echo "  LD " $@
-	@$(CC) $(TARGET).a $(LDFLAGS) -Wl,-Bstatic -lsed -Wl,-Bdynamic -o $@
+	@$(CC) $(TARGET).a $(LDFLAGS) -Wl,-Bstatic -lsed -Wl,-Bdynamic -lkeyutils -o $@
 
 $(TARGET)-dynamic: $(TARGET).a $(LIB).so
 	@echo "  LD " $@
-	@$(CC) $(TARGET).a $(LDFLAGS) -lsed -o $@
+	@$(CC) $(TARGET).a $(LDFLAGS) -lsed -lkeyutils -o $@
 
 $(TARGET).a: $(patsubst %,$(OBJDIR)%,$(OBJS))
 	@echo "  AR " $@

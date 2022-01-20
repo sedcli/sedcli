@@ -154,9 +154,19 @@ Force use of NVMe pass-through interface, even if Linux OPAL Driver is configure
 
 Commands that require one or more passwords may specify the source for
 those passwords (the key source). The following source options are available:
-.P
-1. \fBuser\fR - prompt the user on stdio for the passwords.
+.IP "\fBuser\fR"
+prompt the user on stdio for the passwords.
 This is the default behavior.
+.IP "\fBkeyring[:<options>]\fR"
+Get password(s) from the Linux keyring
+facility. With no <options>, the default keyring built-in to sed_ioctl()
+is used, with default key names. <options> mimics the syntax used
+by keyctl(1), specifically:
+
+.IP ""
+\fB<key-serial-number>\fR
+.IP ""
+\fB[%:<keyring>]%<key-type>:<key-name>\fR
 
 .SH COPYRIGHT
 Copyright(c) 2018-2020 by the Intel Corporation.

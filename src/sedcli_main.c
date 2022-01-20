@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <unistd.h>
+#include <keyutils.h>
 
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -56,7 +57,7 @@ static int handle_blocksid(void);
 	{'q', "quiet", "Suppress informative messages", 0},	\
 	{'p', "pass-thru", "Force use of pass-thru inferface", 0}
 
-#define KEY_SOURCE_VALS	"{user}"
+#define KEY_SOURCE_VALS	"{user|keyring}"
 #define KEY_SOURCE_OPTS	\
 	{'k', "key-source", "Key source " KEY_SOURCE_VALS, 1, "SRC", 0}
 
@@ -327,12 +328,91 @@ static int handle_common_opts(char *opt, char **arg)
 	return 1;	/* not matched */
 }
 
+static int get_keyring_expr(char *arg, struct sed_key_options *kopts)
+{
+	/* parse [%:keyring]%key-type:key-desc */
+	/* initial '%' has been removed. */
+	key_serial_t kr = 0, sn = 0;
+
+	char *krx = arg;
+	char *ktx = strchr(arg, '%');
+	if (ktx) {
+		if (*krx++ != ':') {
+			return -EINVAL;
+		}
+		*ktx++ = '\0';
+	} else {
+		krx = NULL;
+		ktx = arg;
+	}
+	char *kkx = strchr(ktx, ':');
+	if (!kkx) {
+		return -EINVAL;
+	}
+	*kkx++ = '\0';
+	if (krx) {
+		kr = find_key_by_type_and_desc("keyring", krx, 0);
+		if (kr <= 0) {
+			return -EINVAL;
+		}
+		sn = keyctl_search(kr, ktx, kkx, 0);
+	} else {
+		sn = find_key_by_type_and_desc(ktx, kkx, 0);
+	}
+	if (sn <= 0) {
+		return -EINVAL;
+	}
+	kopts->key_sn = sn;
+	return 0;
+}
+
+static int get_keyring_opts(char *arg, struct sed_key_options *kopts)
+{
+	/*
+	 * syntax: keyring[:{<key-serial>|[%:<keyring>]%<type>:<desc>}]
+	 * examples:
+	 * 	-k keyring
+	 * 	-k keyring:1234567
+	 * 	-k keyring:%user:sed-opal-pek
+	 * 	-k keyring:%:_ses%user:sed-opal-pek
+	 */
+	kopts->key_sn = 0UL;	/* default to sed-opal keyring/key */
+	if (*arg) {
+		if (*arg++ != ':') {
+			return -EINVAL;
+		}
+		if (*arg == '%') {
+			if (get_keyring_expr(arg + 1, kopts) != 0) {
+				return -EINVAL;
+			}
+		} else {
+			unsigned long sn;
+			char *end;
+			sn = strtoul(arg, &end, 0);
+			if (end == arg || *end) {
+				return -EINVAL;
+			}
+			kopts->key_sn = sn;
+		}
+	}
+	kopts->key_src = SED_KEY_KEYRING;
+	return 0;
+}
+
 static int get_key_source(char *arg, struct sed_key_options *kopts)
 {
 	int err = 0;
 	if (!strcmp(arg, "user")) {
 		/* default */
 		kopts->key_src = SED_KEY_FROMUSER;
+	} else if (!strncmp(arg, "keyring", 7)) {
+#ifdef CONFIG_OPAL_DRIVER_KEY_TYPE
+		err = get_keyring_opts(arg + 7, kopts);
+#else
+		sedcli_printf(LOG_ERR,
+			"keyring source requires opal-driver with key_type\n");
+		err = -EINVAL;
+#endif
 	} else {
 		sedcli_printf(LOG_ERR,
 			"Invalid key source, use " KEY_SOURCE_VALS "\n");
