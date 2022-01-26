@@ -409,12 +409,12 @@ int sed_init(struct sed_device **dev, const char *dev_path, bool pt)
 		curr_if = &opal_if;
 	} else if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
 		SEDCLI_DEBUG_PARAM("%s is not an NVMe device and function not supported by driver!\n", dev_path);
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	}
 #else
 	if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
 		SEDCLI_DEBUG_PARAM("%s is not an NVMe device and opal-driver not built-in!\n", dev_path);
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	}
 #endif
 
@@ -433,7 +433,7 @@ int sed_dev_discovery(struct sed_device *dev,
 			 struct sed_opal_device_discv *discv)
 {
 	if (curr_if->dev_discv_fn == NULL)
-		return -EOPNOTSUPP;
+		return -EINVAL;	/* EOPNOTSUPP means something else here */
 
 	return curr_if->dev_discv_fn(dev, discv);
 }

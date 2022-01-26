@@ -1044,25 +1044,26 @@ static int handle_sed_discv(void)
 	/* special case until sed_ioctl() supports discovery */
 	ret = sed_init(&dev, opts->dev_path, true);
 #endif
+	if (ret == -EOPNOTSUPP)
+		goto display;
 	if (ret) {
 		sedcli_printf(LOG_ERR, "%s: Error initializing device\n", opts->dev_path);
 		return -EINVAL;
 	}
 
 	ret = sed_dev_discovery(dev, &discv);
-	if (ret) {
+	if (ret && ret != -EOPNOTSUPP) {
 		sedcli_printf(LOG_ERR, "Command NOT supported for this interface.\n");
 		goto deinit;
 	}
-
+display:
+	ret = 0;
 	switch(opts->print_fmt) {
 	case SED_NORMAL:
 		sed_discv_print_normal(&discv, opts->dev_path);
-		ret = 0;
 		break;
 	case SED_UDEV:
 		sed_discv_print_udev(&discv, false);
-		ret = 0;
 		break;
 	case SED_UDEV_NUM:
 		sed_discv_print_udev(&discv, true);
