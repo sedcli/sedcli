@@ -55,7 +55,7 @@ update Admin1 password for Locking SP.
 .TQ
 \fB\-\-discovery --device <device> [--format {normal|udev}]\fR
 Performs Level 0 and Level 1 Discovery and prints out the info in human-readable(default) or
-machine friendly format.
+machine friendly format. See DISCOVERY DATA.
 
 .TP
 \fB\-O -d <device> [-k <pwd-opts>]\fR
@@ -197,6 +197,30 @@ by keyctl(1), specifically:
 \fB<key-serial-number>\fR
 .IP ""
 \fB[%:<keyring>]%<key-type>:<key-name>\fR
+
+.SH DISCOVERY DATA
+
+The discovery command --format option \fBudev\fR
+displays a subset of the information as variable assigments,
+suitable for evaluation in scripts.
+\fBudev\fR uses the values "ENABLED" and "DISABLED".
+The following variables are displayed:
+
+.IP DEV_SED_COMPATIBLE
+Shows whether the drive is SED-OPAL capable.
+If this variable is DISABLED, all other variables will be DISABLED.
+.IP DEV_SED_LOCKED
+Shows whether the drive has locking enabled (same as DEV_SED_LOCKING).
+.IP DEV_SED_LOCKING_SUPP
+Shows whether the drive has locking supported.
+.IP DEV_SED_LOCKING
+Shows whether the drive has locking enabled.
+.IP DEV_SED_LOCKING_LOCKED
+Shows whether the drive is locked.
+.IP DEV_SED_MBR_SHADOW
+Shows whether the drive has MBR Shadow enabled.
+.IP DEV_SED_MBR_DONE
+Shows whether the drive has MBR Done set.
 
 .SH COPYRIGHT
 Copyright(c) 2018-2020 by the Intel Corporation.

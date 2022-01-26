@@ -997,15 +997,18 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 #define SED_ENABLE "ENABLED"
 #define SED_DISABLE "DISABLED"
 
-char *DEV_SED_COMPATIBLE;
-char *DEV_SED_LOCKED;
-
 static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
 {
-	bool locking_enabled;
+	bool locking_enabled, locking_supp, locked, mbr_enabled, mbr_done;
 	uint16_t comid = 0;
+	uint8_t locking_feat = discv->sed_lvl0_discv.locking_feat;
 
-	locking_enabled = (discv->sed_lvl0_discv.locking_feat & SED_L0DISC_LOCKING_FEAT_LOCKING_EN) ? true : false;
+	locking_supp = (locking_feat & SED_L0DISC_LOCKING_FEAT_SUPP) ? true : false;
+	locking_enabled = (locking_feat & SED_L0DISC_LOCKING_FEAT_LOCKING_EN) ? true : false;
+	locked = (locking_feat & SED_L0DISC_LOCKING_FEAT_LOCKED) ? true : false;
+	mbr_enabled = (locking_feat & SED_L0DISC_LOCKING_FEAT_MBR_EN) ? true : false;
+	mbr_done = (locking_feat & SED_L0DISC_LOCKING_FEAT_MBR_DONE) ? true : false;
+
 	if (discv->sed_lvl0_discv.features & SED_L0DISC_OPALV200_DESC) {
 		comid = discv->sed_lvl0_discv.sed_opalv200.base_comid;
 	} else if (discv->sed_lvl0_discv.features & SED_L0DISC_RUBY_DESC) {
@@ -1014,18 +1017,14 @@ static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
 		comid = discv->sed_lvl0_discv.sed_opalv100.v1_base_comid;
 	}
 
-	if (!comid)
-		DEV_SED_COMPATIBLE = SED_DISABLE;
-	else
-		DEV_SED_COMPATIBLE = SED_ENABLE;
-
-	if (locking_enabled)
-		DEV_SED_LOCKED = SED_ENABLE;
-	else
-		DEV_SED_LOCKED = SED_DISABLE;
-
-	sedcli_printf(LOG_INFO, "DEV_SED_COMPATIBLE=%s\n", DEV_SED_COMPATIBLE);
-	sedcli_printf(LOG_INFO, "DEV_SED_LOCKED=%s\n", DEV_SED_LOCKED);
+	sedcli_printf(LOG_INFO, "DEV_SED_COMPATIBLE=%s\n", comid ? SED_ENABLE : SED_DISABLE);
+	/* this name is misleading: does not specify if device is actually locked */
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKED=%s\n", locking_enabled ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING_SUPP=%s\n", locking_supp ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING=%s\n", locking_enabled ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING_LOCKED=%s\n", locked ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_MBR_SHADOW=%s\n", mbr_enabled ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_MBR_DONE=%s\n", mbr_done ? SED_ENABLE : SED_DISABLE);
 }
 
 static int handle_sed_discv(void)
