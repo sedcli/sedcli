@@ -229,6 +229,15 @@ Copyright(c) 2018-2020 by the Intel Corporation.
 .SH AUTHOR
 This manual page was created by Andrzej Jakowski <andrzej.jakowski@intel.com>
 
+.SH FILES
+.IP /etc/udev/rules.d/64-sedcli.rules
+Example udev rule to unlock NVMe drives using keyring key source.
+.IP /usr/bin/sed-opal-init
+Example script to initialize keys for using keyring key source, on systems
+that do not provide platform key-store (PKS).
+.IP /usr/lib/systemd/system/sed-opal-keyring.service
+Example service to run sed-opal-init at boot, before udev begins.
+
 .SH SEE ALSO
 .TP
 sedcli(8)

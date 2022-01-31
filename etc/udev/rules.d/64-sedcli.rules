@@ -1,0 +1,19 @@
+# This udev rule depends on the latest version of sedcli. It also
+# assumes that Linux keyrings are being used for the drive password.
+# See usr/lib/systemd/system/sed-opal-keyring.service for an example
+# of initializing the keyring at boot time.
+#
+# NOTE: NVMf (NVMe-over-FC) drives would have SUBSYSTEMS=="nvme-subsystem",
+# and thus would not match local NVMe drives having SUBSYSTEMS=="nvme".
+# While it appears that even local NVMe drives will appear under
+# /sys/devices/virtual/nvme-subsystem, their udev hierarchy does not
+# include this path.
+# SED-OPAL NVMf drives are unlocked by their server, especially since
+# the exported drive might not even represent a (single/whole) physical drive.
+#
+# ATTR{events}=="*" excludes the partitions of a device, if present.
+# The partitions have no "events" attribute at all, while NVMe devices
+# seem to have an empty "events" attribute (ATTR{events}=="").
+#
+# Modify 'sedcli' path as required:
+ACTION=="add" SUBSYSTEM=="block" SUBSYSTEMS=="nvme" ATTR{events}=="*" RUN+="/usr/bin/sedcli -U -q -k keyring -d %N"

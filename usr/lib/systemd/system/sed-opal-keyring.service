@@ -1,0 +1,22 @@
+# This file is part of sedcli.
+#
+# Example service to run sed-opal-init before udev begins
+# drive discovery. This ensures that SED-OPAL passwords are
+# initialized in the ".sed_opal" keyring before any unlock
+# attempts are made.
+#
+# See /usr/bin/sed-opal-init and /etc/udev/rules.d/63-sedcli.rules.
+
+[Unit]
+Description=SED-OPAL keyring init
+Documentation=man:sedcli(8)
+DefaultDependencies=no
+Before=systemd-udevd.service
+RequiresMountsFor=/usr/bin
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/sed-opal-init
+
+[Install]
+WantedBy=systemd-udevd.service

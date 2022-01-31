@@ -1,0 +1,32 @@
+#!/bin/bash
+# Example startup script to initialize SED-OPAL passwords in the
+# keyring. A more practical example would acquire passwords from a
+# key management service or encrypted file/store.
+
+# For this example, passwords are hard-coded here.
+cur_pwd="abcdefg"
+old_pwd="gfedcba"
+err=0
+
+# Create key initially on _ses, then fix permissions and move
+# to .sed_opal. Allow USR to only SEARCH, WRITE, VIEW. POS perms
+# are no longer relevant after moving to %:.sed_opal keyring.
+# In this context, "@s" keyring will be destroyed sometime after
+# this script exits.
+# key name is $1, password is on stdin
+mkkey() {
+	sn=$(keyctl padd user ${1} @s)
+	if [[ $? -ne 0 ]]; then return 1; fi
+	keyctl setperm ${sn} 0x3f0d0000
+	keyctl move ${sn} @s %:.sed_opal
+	if [[ $? -eq 0 ]]; then return 0; fi
+	# Failed to move key, destroy any trace.
+	keyctl unlink ${sn}
+	return 1
+}
+
+echo -n ${cur_pwd} | mkkey sed-opal-pek
+if [[ $? -ne 0 ]]; then echo "mkkey sed-opal-pek failed"; err=1; fi
+echo -n ${old_pwd} | mkkey sed-opal-pek-old
+if [[ $? -ne 0 ]]; then echo "mkkey sed-opal-pek-old failed"; err=1; fi
+exit ${err}
