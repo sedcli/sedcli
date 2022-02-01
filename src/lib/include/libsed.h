@@ -12,6 +12,7 @@
 #include <stdbool.h>
 
 #define SED_MAX_KEY_LEN (32)
+#define SED_MIN_KEY_LEN (8)
 
 #define SED_OPAL_MAX_LRS 9
 
@@ -89,7 +90,18 @@ enum SED_AUTHORITY {
 	SED_ANYBODY = 0xC,
 };
 
+enum sed_key_src {
+	SED_KEY_FROMUSER = 0,	/* get key from user (stdio) */
+};
+
 struct sed_device;
+
+struct sed_key_options {
+	enum sed_key_src key_src;	/* how to get key */
+	union {
+		void *_unused;
+	};
+};
 
 struct sed_geometry_supported_feat {
 	uint32_t flags;
@@ -180,6 +192,8 @@ struct sed_opal_device_discv {
 struct sed_key {
 	uint8_t key[SED_MAX_KEY_LEN];
 	uint8_t len;
+	enum sed_key_src src;
+	void *param;	/* depends on src */
 };
 
 struct sed_opal_lockingrange {
@@ -238,6 +252,14 @@ int sed_dev_discovery(struct sed_device *dev,
  *
  */
 void sed_deinit(struct sed_device *dev);
+
+/**
+ * Calls the appropriate function based on key source.
+ * Prepares 'key' for use in command handlers. May include
+ * acquiring actual PEK value.
+ */
+int sed_get_pwd(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+		struct sed_key *key, bool confirm, bool old);
 
 /**
  *

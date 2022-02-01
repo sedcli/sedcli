@@ -8,7 +8,8 @@
 
 int get_lock_type(const char *lock_type);
 
-int get_password(char *pwd, uint8_t *len, uint8_t min, uint8_t max);
+int get_pwd_key(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+		struct sed_key *key, bool confirm, bool old);
 
 void *alloc_locked_buffer(size_t size);
 

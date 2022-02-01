@@ -57,4 +57,7 @@ int sedopal_save(struct sed_device *dev, const struct sed_key *key,
 
 void sedopal_deinit(struct sed_device *dev);
 
+int sedopal_getpwd(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+				struct sed_key *key, bool confirm, bool old);
+
 #endif /* _SED_IOCTL_H */

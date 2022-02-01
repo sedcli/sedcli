@@ -22,8 +22,6 @@
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 
-#define SED_MIN_KEY_LEN (8)
-
 #define SEDCLI_TITLE "Self-Encrypting Drive command line interface (sedcli)"
 #define PYRITE_V100 "v1.00"
 #define PYRITE_V200 "v2.00"
@@ -58,6 +56,10 @@ static int handle_blocksid(void);
 	{'q', "quiet", "Suppress informative messages", 0},	\
 	{'p', "pass-thru", "Force use of pass-thru inferface", 0}
 
+#define KEY_SOURCE_VALS	"{user}"
+#define KEY_SOURCE_OPTS	\
+	{'k', "key-source", "Key source " KEY_SOURCE_VALS, 1, "SRC", 0}
+
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'f', "format", "Output format: {normal|udev}", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
@@ -67,12 +69,14 @@ static cli_option sed_discv_opts[] = {
 
 static cli_option ownership_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
 
 static cli_option activatelsp_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
@@ -81,6 +85,7 @@ static cli_option reverttper_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'i', "psid", "Revert Trusted Peripheral (TPer) with the PSID authority", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
 	{'n', "non-destructive", "Perform non-destructive revert on TPer (i.e. keep the user data intact even after revert)", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
@@ -88,18 +93,22 @@ static cli_option reverttper_opts[] = {
 static cli_option lock_unlock_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'t', "accesstype", "String specifying access type to the data on drive. Allowed values: RO/RW/LK", 1, "FMT", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
 
 static cli_option setup_global_range_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
 
 static cli_option setpw_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	KEY_SOURCE_OPTS,
+	{'o', "old-key-source", "Old Key source " KEY_SOURCE_VALS, 1, "SRC", 0},
 	COMMON_OPTS,
 	{0}
 };
@@ -108,6 +117,7 @@ static cli_option mbr_control_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'e', "enable", "Set/Unset MBR Enable column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
 	{'m', "done", "Set/Unset MBR Done column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
@@ -116,6 +126,7 @@ static cli_option write_mbr_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'f', "file", "File path containing Pre-boot Application(PBA) image ", 1, "FMT", CLI_OPTION_REQUIRED},
 	{'o', "offset", "Enter the offset(by default 0)", 1, "NUM", CLI_OPTION_OPTIONAL_ARG},
+	KEY_SOURCE_OPTS,
 	COMMON_OPTS,
 	{0}
 };
@@ -283,8 +294,7 @@ struct sedcli_options {
 	int pass_thru;
 	char file_path[PATH_MAX];	/* for --write-mbr command */
 	struct sed_key pwd;
-	struct sed_key repeated_pwd;
-	struct sed_key old_pwd;
+	struct sed_key old_pwd;		/* for --set-password command */
 	int psid;
 	int lock_type;
 	int print_fmt;
@@ -293,6 +303,8 @@ struct sedcli_options {
 	int offset;
 	bool hardware_reset;
 	int non_destructive;
+	struct sed_key_options key_opts;
+	struct sed_key_options old_key_opts; /* for --set-password command */
 };
 
 static struct sedcli_options *opts = NULL;
@@ -311,6 +323,30 @@ static int handle_common_opts(char *opt, char **arg)
 	} else if (!strcmp(opt, "pass-thru")) {
 		opts->pass_thru = 1;
 		return 0;
+	}
+	return 1;	/* not matched */
+}
+
+static int get_key_source(char *arg, struct sed_key_options *kopts)
+{
+	int err = 0;
+	if (!strcmp(arg, "user")) {
+		/* default */
+		kopts->key_src = SED_KEY_FROMUSER;
+	} else {
+		sedcli_printf(LOG_ERR,
+			"Invalid key source, use " KEY_SOURCE_VALS "\n");
+		err = -EINVAL;
+	}
+	return err;
+}
+
+static int handle_key_source(char *opt, char **arg)
+{
+	if (!strcmp(opt, "key-source")) {
+		return get_key_source(arg[0], &opts->key_opts);
+	} else if (!strcmp(opt, "old-key-source")) {
+		return get_key_source(arg[0], &opts->old_key_opts);
 	}
 	return 1;	/* not matched */
 }
@@ -354,6 +390,8 @@ int ownership_handle_opts(char *opt, char **arg)
 
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -367,6 +405,8 @@ int activatelsp_handle_opts(char *opt, char **arg)
 
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -384,6 +424,8 @@ int reverttper_handle_opts(char *opt, char **arg)
 		opts->psid = 1;
 	} else if (!strcmp(opt, "non-destructive")) {
 		opts->non_destructive = 1;
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -403,6 +445,8 @@ int lock_unlock_handle_opts(char *opt, char **arg)
 			sedcli_printf(LOG_ERR, "Incorrect lock type\n");
 			return -EINVAL;
 		}
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -416,6 +460,8 @@ int setup_global_range_handle_opts(char *opt, char **arg)
 
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -429,6 +475,8 @@ int setpw_handle_opts(char *opt, char **arg)
 
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -470,6 +518,8 @@ int mbr_control_handle_opts(char *opt, char **arg)
 		opts->done = get_mbr_flag(arg[0]);
 		if (opts->done < 0)
 			return opts->done;
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -480,8 +530,8 @@ int mbr_control_handle_opts(char *opt, char **arg)
 bool offset_flag = false;
 int write_mbr_handle_opts(char *opt, char **arg)
 {
-	char *error;
 	int ret = 0;
+	char *error;
 
 	if (!offset_flag)
 		opts->offset = 0;
@@ -498,6 +548,8 @@ int write_mbr_handle_opts(char *opt, char **arg)
 			return -EINVAL;
 		}
 		offset_flag = true;
+	} else if ((ret = handle_key_source(opt, arg)) != 1) {
+		return ret;
 	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
 		return ret;
 	}
@@ -874,35 +926,22 @@ static int handle_ownership(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
-	sedcli_printf(LOG_INFO, "New SID password: ");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-	if (ret != 0) {
-		return -1;
-	}
-
-	sedcli_printf(LOG_INFO, "Repeat new SID password: ");
-
-	ret = get_password((char *) opts->repeated_pwd.key, &opts->repeated_pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-	if (ret != 0) {
-		return -1;
-	}
-
-	if (0 != strncmp((char *) opts->pwd.key, (char *) opts->repeated_pwd.key, SED_MAX_KEY_LEN)) {
-		sedcli_printf(LOG_ERR, "Error: passwords don't match\n");
-		return -1;
-	}
-
 	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
 	}
 
+	ret = get_pwd_key(&opts->key_opts, SED_SID, &opts->pwd, true, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto deinit;
+	}
+
 	ret = sed_takeownership(dev, &opts->pwd);
 
 	print_sed_status(ret);
-
+deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -913,24 +952,22 @@ static int handle_activatelsp(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
-	sedcli_printf(LOG_INFO, "Enter SID password: ");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
 	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
 	}
 
+	ret = get_pwd_key(&opts->key_opts, SED_SID, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto deinit;
+	}
+
 	ret = sed_activatelsp(dev, &opts->pwd);
 
 	print_sed_status(ret);
-
+deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -941,24 +978,22 @@ static int handle_reverttper(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
-	sedcli_printf(LOG_INFO, "Enter %s password: ", opts->psid ? "PSID" : "SID");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
 	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
 	}
 
+	ret = get_pwd_key(&opts->key_opts, opts->psid ? SED_PSID : SED_SID, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto deinit;
+	}
+
 	ret = sed_reverttper(dev, &opts->pwd, opts->psid, opts->non_destructive);
 
 	print_sed_status(ret);
-
+deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -969,24 +1004,22 @@ static int handle_lock_unlock(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
-	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
 	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
 	}
 
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto deinit;
+	}
+
 	ret = sed_lock_unlock(dev, &opts->pwd, opts->lock_type);
 
 	print_sed_status(ret);
-
+deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -997,24 +1030,22 @@ static int handle_setup_global_range(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
-	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
 	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
 	}
 
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto deinit;
+	}
+
 	ret = sed_setup_global_range(dev, &opts->pwd);
 
 	print_sed_status(ret);
-
+deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -1025,45 +1056,27 @@ static int handle_setpw(void)
 	struct sed_device *dev = NULL;
 	int ret;
 
-	sedcli_printf(LOG_INFO, "Old Admin1 password: ");
-
-	ret = get_password((char *) opts->old_pwd.key, &opts->old_pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
-	sedcli_printf(LOG_INFO, "New Admin1 password: ");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
-	sedcli_printf(LOG_INFO, "Repeat new Admin1 password: ");
-
-	ret = get_password((char *) opts->repeated_pwd.key, &opts->repeated_pwd.len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-
-	if (ret != 0) {
-		return -1;
-	}
-
-	if (0 != strcmp((char *) opts->pwd.key, (char *) opts->repeated_pwd.key)) {
-		sedcli_printf(LOG_ERR, "Error: passwords don't match\n");
-		return -1;
-	}
-
 	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
 	}
 
+	ret = get_pwd_key(&opts->old_key_opts, SED_ADMIN1, &opts->old_pwd, false, true);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting old password\n");
+		goto deinit;
+	}
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, true, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting new password\n");
+		goto deinit;
+	}
+
 	ret = sed_setpw(dev, SED_ADMIN1, &opts->old_pwd, &opts->pwd);
 
 	print_sed_status(ret);
-
+deinit:
 	sed_deinit(dev);
 
 	return ret;
@@ -1125,9 +1138,7 @@ static int handle_mbr_control(void)
 	if (ret)
 		goto init_deinit;
 
-	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len,
-				SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, false, false);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error getting password\n");
 		goto init_deinit;
@@ -1167,6 +1178,12 @@ static int handle_write_mbr(void)
 	if (ret)
 		goto init_deinit;
 
+	ret = get_pwd_key(&opts->key_opts, SED_ADMIN1, &opts->pwd, false, false);
+	if (ret) {
+		sedcli_printf(LOG_ERR, "Error getting password\n");
+		goto init_deinit;
+	}
+
 	mbr_fd = open(opts->file_path, O_RDONLY | O_CLOEXEC);
 	if (fstat(mbr_fd, &mbr_st) == -1) {
 		sedcli_printf(LOG_ERR, "Error opening/fstating file: %s\n",
@@ -1184,21 +1201,11 @@ static int handle_write_mbr(void)
 		goto close_fd;
 	}
 
-	sedcli_printf(LOG_INFO, "Enter Admin1 password: ");
-
-	ret = get_password((char *) opts->pwd.key, &opts->pwd.len,
-				SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
-	if (ret) {
-		sedcli_printf(LOG_ERR, "Error getting password\n");
-		ret = -1;
-		goto unmap;
-	}
-
 	ret = sed_write_shadow_mbr(dev, &opts->pwd, (const uint8_t *)mbr_mmap,
 				mbr_st.st_size, opts->offset);
 
 	print_sed_status(ret);
-unmap:
+
 	munmap(mbr_mmap, mbr_st.st_size);
 close_fd:
 	close(mbr_fd);

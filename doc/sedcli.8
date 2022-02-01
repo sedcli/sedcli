@@ -50,26 +50,44 @@ update Admin1 password for Locking SP.
 
 .SH OPTIONS
 
-.IP "\fB\-D -d <device> [-f {normal|udev}]\fR or \fB\-\-discovery --device <device> [--format {normal|udev}]\fR"
+.TP
+\fB\-D -d <device> [-f {normal|udev}]\fR
+.TQ
+\fB\-\-discovery --device <device> [--format {normal|udev}]\fR
 Performs Level 0 and Level 1 Discovery and prints out the info in human-readable(default) or
 machine friendly format.
 
-.IP "\fB\-O -d <device>\fR or \fB\-\-ownership --device <device>\fR"
+.TP
+\fB\-O -d <device> [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-ownership --device <device> [--key-source <pwd-opts>]\fR
 Takes ownership of the device.
 
-.IP "\fB\-A -d <device>\fR or \fB\-\-activate-lsp --device <device>\fR"
+.TP
+\fB\-A -d <device> [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-activate-lsp --device <device> [--key-source <pwd-opts>]\fR
 Activates Locking SP.
 
-.IP "\fB\-R -d <device> [-i] [-n]\fR or \fB\-\-revert --device <device> [--psid] [--non-destructive]\fR"
+.TP
+\fB\-R -d <device> [-i] [-n] [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-revert --device <device> [--psid] [--non-destructive] [--key-source <pwd-opts>]\fR
 Performs Destructive or Non-Destructive Revert TPer to Manufactured-Inactivate
 state using either SID or PSID authority.
 
-.IP "\fB\-S -d <device>\fR or \fB\-\-setup-global-range --device <device>\fR"
+.TP
+\fB\-S -d <device> [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-setup-global-range --device <device> [--key-source <pwd-opts>]\fR
 Sets Read Lock Enabled (RLE) and Write Lock Enabled (WLE) bis for global locking
 range. This effectively enables locking of all user data. Locking will start
 after power cycle or when explicitly locked using \fb\-\-lock-unlock\fR command.
 
-.IP "\fB\-L -d <device> -t <accesstype>\fR or \fB\-\-lock-unlock --device <device> --accesstype {RO|RW|LK}\fR"
+.TP
+\fB\-L -d <device> -t <accesstype> [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-lock-unlock --device <device> --accesstype {RO|RW|LK} [--key-source <pwd-opts>]\fR
 .IP
 Changes the lock state for the device. Following access modes are available:
 .IP
@@ -79,25 +97,44 @@ Changes the lock state for the device. Following access modes are available:
 .IP
 3. Locked(LK) - data is locked, user can NOT read/write data from/to the disk.
 
-.IP "\fB\-P -d <device>\fR or \fB\-\-set-password --device <device>\fR"
+.TP
+\fB\-P -d <device> [-k <new-pwd-opts>] [-o <old-pwd-opts>]\fR
+.TQ
+\fB\-\-set-password --device <device> [--key-source <new-pwd-opts>] [--old-key-source <old-pwd-opts>]\fR
 Updates password for Admin1 authority in Locking SP.
 
-.IP "\fB\-M -d <device> [-e {TRUE|FALSE}] [-m {TRUE|FALSE}]\fR or \fB\-\-mbr-control --device <device> [--enable {TRUE|FALSE}] [--done {TRUE|FALSE}]\fR"
+.TP
+\fB\-M -d <device> [-e {TRUE|FALSE}] [-m {TRUE|FALSE}] [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-mbr-control --device <device> [--enable {TRUE|FALSE}] [--done {TRUE|FALSE}] [--key-source <pwd-opts>]\fR
 .IP
 Enable/Disable MBR Shadow and/or Set/Unset MBR Done.
 MBR Done update to TRUE will only take effect when MBR Shadow is enabled.
 
-.IP "\fB\-W -d <device> -f <pba_file> [-o <offset>]\fR or \fB\-\-write-mbr --device <device> --file <pba_file> [--offset <offset>]\fR"
+.TP
+\fB\-W -d <device> -f <pba_file> [-o <offset>] [-k <pwd-opts>]\fR
+.TQ
+\fB\-\-write-mbr --device <device> --file <pba_file> [--offset <offset>] [--key-source <pwd-opts>]\fR
 Write data into MBR shadow region(MBR table).
 MBR shadow should be enabled for the PBA to take effect.
 
-.IP "\fB\-B -d <device> -r {1|0}\fR or \fB\-\-block_sid --device <device> --hwreset {1|0}\fR"
+.TP
+\fB\-B -d <device> -r {1|0}\fR
+.TQ
+\fB\-\-block_sid --device <device> --hwreset {1|0}\fR
 Issue BlockSID authentication command with Clear Event flag via --hwreset option.
 
-.IP "\fB\-V\fR or \fB\-\-version\fR"
+.TP
+\fB\-V\fR
+.TQ
+\fB\-\-version\fR
 Prints version of sedcli.
 
-.IP "\fB\-H\fR or \fB\-\-help\fR"
+.TP
+\fB\-H\fR
+.TQ
+\fB\-\-help\fR
+.br
 Prints global help on available commands and usage
 
 .IP "To print command specific help use following syntax:"
@@ -112,6 +149,14 @@ Suppress informative messages, specifically the "Success" message.
 
 .IP "\fB\-p\fR or \fB\-\-pass-thru\fR"
 Force use of NVMe pass-through interface, even if Linux OPAL Driver is configured.
+
+.SH PASSWORD OPTIONS
+
+Commands that require one or more passwords may specify the source for
+those passwords (the key source). The following source options are available:
+.P
+1. \fBuser\fR - prompt the user on stdio for the passwords.
+This is the default behavior.
 
 .SH COPYRIGHT
 Copyright(c) 2018-2020 by the Intel Corporation.

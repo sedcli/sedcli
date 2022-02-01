@@ -29,6 +29,9 @@
 
 extern sedcli_printf_t sedcli_printf;
 
+/* deprecated */
+extern int get_password(char *pwd, uint8_t *len, uint8_t min, uint8_t max);
+
 static int handle_provision_opts(char *opt, char **arg);
 static int handle_backup_opts(char *opt, char **arg);
 static int handle_lock_unlock_opts(char *opt, char **arg);

@@ -40,6 +40,24 @@ int sedopal_init(struct sed_device *dev, const char *device_path)
 	return 0;
 }
 
+static int set_opal_key(const struct sed_key *key, struct opal_key *okey)
+{
+	switch (key->src) {
+	case SED_KEY_FROMUSER:
+		if (key->len == 0)
+			return -EINVAL;
+#ifdef CONFIG_OPAL_DRIVER_KEY_TYPE
+		okey->key_type = OPAL_INCLUDED;
+#endif
+		break;
+	default:
+		return -EINVAL;
+	}
+	okey->key_len = key->len;
+	memcpy(okey->key, key->key, okey->key_len);
+	return 0;
+}
+
 static int do_generic_opal(int fd, const struct sed_key *key,
 				unsigned long ioctl_cmd)
 {
@@ -50,8 +68,9 @@ static int do_generic_opal(int fd, const struct sed_key *key,
 		return -EINVAL;
 	}
 
-	opal_disk_key.key_len = key->len;
-	memcpy(opal_disk_key.key, key->key, opal_disk_key.key_len);
+	if (set_opal_key(key, &opal_disk_key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(fd, ioctl_cmd, &opal_disk_key);
 }
@@ -63,7 +82,7 @@ static int do_generic_lkul(int fd, const struct sed_key *key,
 	struct opal_lock_unlock oln = { };
 	uint32_t opal_user = user, opal_locktype = lock_type;
 
-	if (key == NULL || key->len == 0) {
+	if (key == NULL) {
 		SEDCLI_DEBUG_MSG("Need to supply password!\n");
 		return -EINVAL;
 	}
@@ -77,8 +96,9 @@ static int do_generic_lkul(int fd, const struct sed_key *key,
 	oln.session.who = opal_user;
 	oln.l_state = opal_locktype;
 
-	oln.session.opal_key.key_len = key->len;
-	memcpy(oln.session.opal_key.key, key->key, oln.session.opal_key.key_len);
+	if (set_opal_key(key, &oln.session.opal_key) != 0) {
+		return -EINVAL;
+	}
 
 	oln.session.opal_key.lr = lr;
 
@@ -116,8 +136,9 @@ int sedopal_write_shadow_mbr(struct sed_device *dev, const struct sed_key *key,
 		return -EINVAL;
 	}
 
-	opal_wr_mbr.key.key_len = key->len;
-	memcpy(opal_wr_mbr.key.key, key->key, opal_wr_mbr.key.key_len);
+	if (set_opal_key(key, &opal_wr_mbr.key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(fd, IOC_OPAL_WRITE_SHADOW_MBR, &opal_wr_mbr);
 }
@@ -156,8 +177,9 @@ int sedopal_activatelsp(struct sed_device *dev, const struct sed_key *key, char 
 		opal_activate.num_lrs = count;
 	}
 
-	opal_activate.key.key_len = key->len;
-	memcpy(opal_activate.key.key, key->key, opal_activate.key.key_len);
+	if (set_opal_key(key, &opal_activate.key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(fd, IOC_OPAL_ACTIVATE_LSP, &opal_activate);
 }
@@ -167,7 +189,7 @@ int sedopal_setup_global_range(struct sed_device *dev, const struct sed_key *key
 	struct opal_user_lr_setup setup = { };
 	int fd = dev->fd;
 
-	if (key == NULL || key->len == 0) {
+	if (key == NULL) {
 		SEDCLI_DEBUG_MSG("Incorrect parameters, please try again\n");
 		return -EINVAL;
 	}
@@ -180,8 +202,9 @@ int sedopal_setup_global_range(struct sed_device *dev, const struct sed_key *key
 	setup.range_length = 0;
 	setup.session.opal_key.lr = 0;
 
-	setup.session.opal_key.key_len = key->len;
-	memcpy(setup.session.opal_key.key, key->key, setup.session.opal_key.key_len);
+	if (set_opal_key(key, &setup.session.opal_key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(fd, IOC_OPAL_LR_SETUP, &setup);
 }
@@ -209,13 +232,10 @@ int sedopal_setuplr(struct sed_device *dev, const struct sed_key *key,
 	setup.range_start = range_start;
 	setup.range_length = range_length;
 
-	setup.session.opal_key.key_len = key->len;
-	memcpy(setup.session.opal_key.key, key->key, setup.session.opal_key.key_len);
-
-	if (setup.session.opal_key.key_len == 0) {
-		setup.session.opal_key.key_len = 1;
-		setup.session.opal_key.key[0] = 0;
+	if (set_opal_key(key, &setup.session.opal_key) != 0) {
+		return -EINVAL;
 	}
+
 	setup.session.opal_key.lr = lr;
 
 	return ioctl(fd, IOC_OPAL_LR_SETUP, &setup);
@@ -241,8 +261,9 @@ int sedopal_mbrdone(struct sed_device *dev, const struct sed_key *key,
 
 	mbr.done_flag = mbr_done ? OPAL_MBR_DONE : OPAL_MBR_NOT_DONE;
 
-	mbr.key.key_len = key->len;
-	memcpy(mbr.key.key, key->key, mbr.key.key_len);
+	if (set_opal_key(key, &mbr.key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(dev->fd, IOC_OPAL_MBR_DONE, &mbr);
 }
@@ -259,8 +280,9 @@ int sedopal_shadowmbr(struct sed_device *dev, const struct sed_key *key,
 
 	mbr.enable_disable = enable_mbr ? OPAL_MBR_ENABLE : OPAL_MBR_DISABLE;
 
-	mbr.key.key_len = key->len;
-	memcpy(mbr.key.key, key->key, mbr.key.key_len);
+	if (set_opal_key(key, &mbr.key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(dev->fd, IOC_OPAL_ENABLE_DISABLE_MBR, &mbr);
 }
@@ -271,7 +293,7 @@ int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct 
 	struct opal_new_pw pw = { };
 	int fd = dev->fd;
 
-	if (old_key == NULL || new_key == NULL || old_key->len == 0 || new_key->len == 0 || auth != SED_ADMIN1) {
+	if (old_key == NULL || new_key == NULL || auth != SED_ADMIN1) {
 		SEDCLI_DEBUG_MSG("Invalid arguments, please try again\n");
 		return -EINVAL;
 	}
@@ -282,11 +304,12 @@ int sedopal_setpw(struct sed_device *dev, enum SED_AUTHORITY auth, const struct 
 	pw.new_user_pw.who = SED_ADMIN1;
 	pw.new_user_pw.opal_key.lr = 0;
 
-	pw.session.opal_key.key_len = old_key->len;
-	memcpy(pw.session.opal_key.key, old_key->key, pw.session.opal_key.key_len);
-
-	pw.new_user_pw.opal_key.key_len = new_key->len;
-	memcpy(pw.new_user_pw.opal_key.key, new_key->key, pw.new_user_pw.opal_key.key_len);
+	if (set_opal_key(old_key, &pw.session.opal_key) != 0) {
+		return -EINVAL;
+	}
+	if (set_opal_key(new_key, &pw.new_user_pw.opal_key) != 0) {
+		return -EINVAL;
+	}
 
 	return ioctl(fd, IOC_OPAL_SET_PW, &pw);
 }
@@ -310,8 +333,9 @@ int sedopal_enable_user(struct sed_device *dev, const struct sed_key *key,
 		return -EINVAL;
 	}
 
-	usr.opal_key.key_len = key->len;
-	memcpy(usr.opal_key.key, key->key, usr.opal_key.key_len);
+	if (set_opal_key(key, &usr.opal_key) != 0) {
+		return -EINVAL;
+	}
 
 	usr.opal_key.lr = 0;
 
@@ -334,8 +358,9 @@ int sedopal_erase_lr(struct sed_device *dev, const struct sed_key *key,
 		if(sed_get_user(user, &session.who))
 			return -EINVAL;
 
-	session.opal_key.key_len = key->len;
-	memcpy(session.opal_key.key, key->key, session.opal_key.key_len);
+	if (set_opal_key(key, &session.opal_key) != 0) {
+		return -EINVAL;
+	}
 
 	session.opal_key.lr = lr;
 
@@ -356,9 +381,9 @@ int sedopal_secure_erase_lr(struct sed_device *dev, const struct sed_key *key,
 	if(sed_get_user(user, &usr.who))
 		return -EINVAL;
 
-	usr.opal_key.key_len = key->len;
-	memcpy(usr.opal_key.key, key->key, usr.opal_key.key_len);
-
+	if (set_opal_key(key, &usr.opal_key) != 0) {
+		return -EINVAL;
+	}
 
 	usr.opal_key.lr = 0;
 
@@ -398,4 +423,11 @@ int sedopal_save(struct sed_device *dev, const struct sed_key *key,
 void sedopal_deinit(struct sed_device *dev)
 {
 	close(dev->fd);
+}
+
+int sedopal_getpwd(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+		struct sed_key *key, bool confirm, bool old)
+{
+	/* no key sources implemented yet. */
+	return -EOPNOTSUPP;
 }

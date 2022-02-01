@@ -50,6 +50,7 @@ static void echo_enable()
 	tcsetattr(1, 0, &term);
 }
 
+/* use externally is deprecated */
 int get_password(char *pwd, uint8_t *len, int min, int max)
 {
 	size_t dest = max + 2;
@@ -100,6 +101,52 @@ err:
 	memset(temp, 0, dest);
 	echo_enable();
 	return ret;
+}
+
+static int ask_password(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+			struct sed_key *key, bool confirm, bool old)
+{
+	/* assert(ops->src == SED_KEY_FROMUSER) */
+	int ret;
+	uint8_t repeated_pwd[SED_MAX_KEY_LEN];
+	uint8_t repeated_pwd_len;
+	/* are these the only possible values? */
+	char *prompt = (auth == SED_ADMIN1 ? "Admin1" :
+			(auth == SED_SID ? "SID" : "PSID"));
+	char *prefix = (old ? "Old" :
+			(confirm ? "New" : "Enter"));
+
+	sedcli_printf(LOG_INFO, "%s %s password: ", prefix, prompt);
+	key->src = SED_KEY_FROMUSER;
+	key->param = NULL;
+	ret = get_password((char *)key->key, &key->len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+	if (ret != 0) {
+		return -1;
+	}
+	if (old || !confirm) {
+		return 0;
+	}
+	sedcli_printf(LOG_INFO, "Repeat new %s password: ", prompt);
+	ret = get_password((char *)repeated_pwd, &repeated_pwd_len, SED_MIN_KEY_LEN, SED_MAX_KEY_LEN);
+	if (ret != 0) {
+		return -1;
+	}
+	if (key->len != repeated_pwd_len ||
+	    0 != strncmp((char *)key->key, (char *)repeated_pwd, key->len)) {
+		sedcli_printf(LOG_ERR, "Error: passwords don't match\n");
+		return -1;
+	}
+	return 0;
+}
+
+int get_pwd_key(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+		struct sed_key *key, bool confirm, bool old)
+{
+	if (opts->key_src == SED_KEY_FROMUSER) {
+		return ask_password(opts, auth, key, confirm, old);
+	} else {
+		return sed_get_pwd(opts, auth, key, confirm, old);
+	}
 }
 
 void *alloc_locked_buffer(size_t size)

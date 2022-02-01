@@ -159,6 +159,24 @@ if test_compile "sed interface" "-I./lib/include -c" "" "./lib/sed_ioctl.c"; the
 	app_config_mk "CONFIG_OPAL_DRIVER=y"
 	app_config_h "#define CONFIG_OPAL_DRIVER"
 	app_config_h "#define CONFIG_OPAL_DRIVER_PSID_REVERT"
+	# Test for opal_key.key_type
+	cat > $TMP_SRC <<EOF
+#include <stdio.h>
+#include <linux/sed-opal.h>
+
+int main(int argc, char **argv)
+{
+	struct opal_key key = {};
+	key.key_type = OPAL_INCLUDED;
+	return 0;
+}
+EOF
+	if test_compile "key_type" "-c" ""; then
+		print_status "key_type support" "yes"
+		app_config_h "#define CONFIG_OPAL_DRIVER_KEY_TYPE"
+	else
+		print_status "key_type support" "no"
+	fi
 else
 	print_status "SED interface(s)" "NVMe-PT (opal-driver not available)"
 fi

@@ -50,6 +50,7 @@ typedef int (*list_lr)(struct sed_device *, const struct sed_key *,
 typedef int (*blocksid)(struct sed_device *, bool);
 typedef int (*stack_reset)(struct sed_device *);
 typedef void (*deinit)(struct sed_device *);
+typedef int (*get_pwd)(struct sed_key_options *, enum SED_AUTHORITY, struct sed_key *, bool, bool);
 
 struct opal_interface {
 	init init_fn;
@@ -76,6 +77,7 @@ struct opal_interface {
 	blocksid blocksid_fn;
 	stack_reset stack_reset_fn;
 	deinit deinit_fn;
+	get_pwd getpwd_fn;
 };
 
 #ifdef CONFIG_OPAL_DRIVER
@@ -103,7 +105,8 @@ static struct opal_interface opal_if = {
 	.list_lr_fn = NULL,
 	.blocksid_fn = NULL,
 	.stack_reset_fn = NULL,
-	.deinit_fn = sedopal_deinit
+	.deinit_fn = sedopal_deinit,
+	.getpwd_fn = sedopal_getpwd,
 };
 #endif
 
@@ -131,7 +134,8 @@ static struct opal_interface nvmept_if = {
 	.list_lr_fn	= opal_list_lr_pt,
 	.blocksid_fn	= opal_block_sid_pt,
 	.stack_reset_fn	= opal_stack_reset_pt,
-	.deinit_fn	= opal_deinit_pt
+	.deinit_fn	= opal_deinit_pt,
+	.getpwd_fn	= NULL,
 };
 
 static struct opal_interface *curr_if = &nvmept_if;
@@ -214,6 +218,16 @@ void sed_deinit(struct sed_device *dev)
 		memset(dev, 0, sizeof(*dev));
 		free(dev);
 	}
+}
+
+int sed_get_pwd(struct sed_key_options *opts, enum SED_AUTHORITY auth,
+		struct sed_key *key, bool confirm, bool old)
+{
+	if (curr_if->getpwd_fn == NULL) {
+		SEDCLI_DEBUG_MSG("Key source not supported on interface.\n");
+		return -EOPNOTSUPP;
+	}
+	return curr_if->getpwd_fn(opts, auth, key, confirm, old);
 }
 
 int sed_key_init(struct sed_key *auth_key, const char *key, const uint8_t key_len)
