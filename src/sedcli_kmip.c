@@ -318,7 +318,7 @@ static int handle_provision(void)
 		goto deinit;
 	}
 
-	status = sed_init(&sed_dev, dev_path);
+	status = sed_init(&sed_dev, dev_path, true);
 	if (status) {
 		sedcli_printf(LOG_ERR, "Error while initializing SED "
 				       "library\n");
@@ -545,7 +545,7 @@ static int handle_backup(void)
 	uint8_t buffer_len;
 	struct sed_device *sed_dev = NULL;
 
-	status = sed_init(&sed_dev, dev_path);
+	status = sed_init(&sed_dev, dev_path, true);
 	if (status) {
 		ret = -1;
 		goto deinit;
@@ -744,7 +744,7 @@ static int handle_lock_unlock(void)
 		return -ENOMEM;
 	}
 
-	ret = sed_init(&dev, dev_path);
+	ret = sed_init(&dev, dev_path, true);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the "
 				       "dev: %s\n", dev_path);

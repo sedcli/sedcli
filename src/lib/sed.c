@@ -159,7 +159,7 @@ static const char *sed_statuses[] = {
 	[SED_FAIL] = "Failed",
 };
 
-int sed_init(struct sed_device **dev, const char *dev_path)
+int sed_init(struct sed_device **dev, const char *dev_path, bool pt)
 {
 	int status = 0;
 	struct sed_device *ret;
@@ -173,14 +173,19 @@ int sed_init(struct sed_device **dev, const char *dev_path)
 	memset(ret, 0, sizeof(*ret));
 
 	base = basename(dev_path);
-	if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
 #ifdef CONFIG_OPAL_DRIVER
+	if (!pt) {
 		curr_if = &opal_if;
+	} else if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
+		SEDCLI_DEBUG_PARAM("%s is not an NVMe device and function not supported by driver!\n", dev_path);
+		return -EINVAL;
+	}
 #else
+	if (strncmp(base, NVME_DEV_PREFIX, strnlen(NVME_DEV_PREFIX, PATH_MAX))) {
 		SEDCLI_DEBUG_PARAM("%s is not an NVMe device and opal-driver not built-in!\n", dev_path);
 		return -EINVAL;
-#endif
 	}
+#endif
 
 	status = curr_if->init_fn(ret, dev_path);
 	if (status != 0) {

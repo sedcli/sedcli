@@ -226,7 +226,7 @@ enum sed_status {
  * Libsed context must be passed to other libsed functions for its proper
  * operation.
  */
-int sed_init(struct sed_device **dev, const char *dev_path);
+int sed_init(struct sed_device **dev, const char *dev_path, bool pt);
 
 /**
  *

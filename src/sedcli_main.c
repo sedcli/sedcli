@@ -54,19 +54,26 @@ static int handle_mbr_control(void);
 static int handle_write_mbr(void);
 static int handle_blocksid(void);
 
+#define COMMON_OPTS	\
+	{'q', "quiet", "Suppress informative messages", 0},	\
+	{'p', "pass-thru", "Force use of pass-thru inferface", 0}
+
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'f', "format", "Output format: {normal|udev}", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	COMMON_OPTS,
 	{0}
 };
 
 static cli_option ownership_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
 	{0}
 };
 
 static cli_option activatelsp_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
 	{0}
 };
 
@@ -74,22 +81,26 @@ static cli_option reverttper_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'i', "psid", "Revert Trusted Peripheral (TPer) with the PSID authority", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
 	{'n', "non-destructive", "Perform non-destructive revert on TPer (i.e. keep the user data intact even after revert)", 0, "FLAG", CLI_OPTION_OPTIONAL_ARG},
+	COMMON_OPTS,
 	{0}
 };
 
 static cli_option lock_unlock_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'t', "accesstype", "String specifying access type to the data on drive. Allowed values: RO/RW/LK", 1, "FMT", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
 	{0}
 };
 
 static cli_option setup_global_range_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
 	{0}
 };
 
 static cli_option setpw_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
 	{0}
 };
 
@@ -97,6 +108,7 @@ static cli_option mbr_control_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'e', "enable", "Set/Unset MBR Enable column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
 	{'m', "done", "Set/Unset MBR Done column. Allowed values: TRUE/FALSE", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	COMMON_OPTS,
 	{0}
 };
 
@@ -104,12 +116,14 @@ static cli_option write_mbr_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'f', "file", "File path containing Pre-boot Application(PBA) image ", 1, "FMT", CLI_OPTION_REQUIRED},
 	{'o', "offset", "Enter the offset(by default 0)", 1, "NUM", CLI_OPTION_OPTIONAL_ARG},
+	COMMON_OPTS,
 	{0}
 };
 
 static cli_option blocksid_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
 	{'r', "hwreset", "Clear events by setting Hardware Reset flag. Allowed values: 1/0", 1, "FMT", CLI_OPTION_REQUIRED},
+	COMMON_OPTS,
 	{0}
 };
 
@@ -266,7 +280,8 @@ static struct supp_data_rm_mechanism_map map[] = {
 
 struct sedcli_options {
 	char dev_path[PATH_MAX];
-	char file_path[PATH_MAX];
+	int pass_thru;
+	char file_path[PATH_MAX];	/* for --write-mbr command */
 	struct sed_key pwd;
 	struct sed_key repeated_pwd;
 	struct sed_key old_pwd;
@@ -281,11 +296,24 @@ struct sedcli_options {
 };
 
 static struct sedcli_options *opts = NULL;
+static int quiet = 0;
 
 enum sed_print_flags {
 	SED_NORMAL,
 	SED_UDEV,
 };
+
+static int handle_common_opts(char *opt, char **arg)
+{
+	if (!strcmp(opt, "quiet")) {
+		quiet = 1;
+		return 0;
+	} else if (!strcmp(opt, "pass-thru")) {
+		opts->pass_thru = 1;
+		return 0;
+	}
+	return 1;	/* not matched */
+}
 
 enum sed_print_flags val_output_fmt(const char *fmt)
 {
@@ -301,6 +329,8 @@ enum sed_print_flags val_output_fmt(const char *fmt)
 int fmt_flag = 0;
 int sed_discv_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (fmt_flag == 0) {
 		/* Set the print format to Normal by default */
 		opts->print_fmt = SED_NORMAL;
@@ -311,6 +341,8 @@ int sed_discv_handle_opts(char *opt, char **arg)
 	} else if (!strcmp(opt, "format")) {
 		opts->print_fmt = val_output_fmt(arg[0]);
 		fmt_flag = 1;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -318,8 +350,12 @@ int sed_discv_handle_opts(char *opt, char **arg)
 
 int ownership_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -327,8 +363,12 @@ int ownership_handle_opts(char *opt, char **arg)
 
 int activatelsp_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -336,12 +376,16 @@ int activatelsp_handle_opts(char *opt, char **arg)
 
 int reverttper_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
 	} else if (!strcmp(opt, "psid")) {
 		opts->psid = 1;
 	} else if (!strcmp(opt, "non-destructive")) {
 		opts->non_destructive = 1;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -349,6 +393,8 @@ int reverttper_handle_opts(char *opt, char **arg)
 
 int lock_unlock_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
 	} else if (!strcmp(opt, "accesstype")) {
@@ -357,6 +403,8 @@ int lock_unlock_handle_opts(char *opt, char **arg)
 			sedcli_printf(LOG_ERR, "Incorrect lock type\n");
 			return -EINVAL;
 		}
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -364,8 +412,12 @@ int lock_unlock_handle_opts(char *opt, char **arg)
 
 int setup_global_range_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -373,8 +425,12 @@ int setup_global_range_handle_opts(char *opt, char **arg)
 
 int setpw_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -400,6 +456,8 @@ bool mbr_enable = false;
 bool mbr_done = false;
 int mbr_control_handle_opts(char *opt, char **arg)
 {
+	int ret = 0;
+
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
 	} else if (!strcmp(opt, "enable")) {
@@ -412,6 +470,8 @@ int mbr_control_handle_opts(char *opt, char **arg)
 		opts->done = get_mbr_flag(arg[0]);
 		if (opts->done < 0)
 			return opts->done;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -421,6 +481,7 @@ bool offset_flag = false;
 int write_mbr_handle_opts(char *opt, char **arg)
 {
 	char *error;
+	int ret = 0;
 
 	if (!offset_flag)
 		opts->offset = 0;
@@ -437,6 +498,8 @@ int write_mbr_handle_opts(char *opt, char **arg)
 			return -EINVAL;
 		}
 		offset_flag = true;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -446,6 +509,7 @@ int blocksid_handle_opts(char *opt, char **arg)
 {
 	/* No reset BlockSID upon power events */
 	int hwreset_flag = 0;
+	int ret = 0;
 
 	if (!strcmp(opt, "device")) {
 		strncpy(opts->dev_path, arg[0], PATH_MAX - 1);
@@ -455,6 +519,8 @@ int blocksid_handle_opts(char *opt, char **arg)
 		}
 		hwreset_flag = atoi(arg[0]);
 		opts->hardware_reset = (hwreset_flag == 1) ? true : false;
+	} else if ((ret = handle_common_opts(opt, arg)) != 1) {
+		return ret;
 	}
 
 	return 0;
@@ -480,9 +546,10 @@ static void print_sed_status(int status)
 		sed_status = sed_error_text(status);
 		if (sed_status == NULL)
 			sedcli_printf(LOG_ERR, "Unknown Error: %d\n", status);
-		else
-			sedcli_printf((status == SED_SUCCESS) ? LOG_INFO : LOG_ERR,
-					"%s\n", sed_status);
+		else if (status != SED_SUCCESS)
+			sedcli_printf(LOG_ERR, "%s\n", sed_status);
+		else if (!quiet)
+			sedcli_printf(LOG_INFO, "%s\n", sed_status);
 	}
 }
 
@@ -764,7 +831,12 @@ static int handle_sed_discv(void)
 	struct sed_device *dev = NULL;
 	struct sed_opal_device_discv discv = { 0 };
 
-	ret = sed_init(&dev, opts->dev_path);
+#ifdef CONFIG_OPAL_DRIVER_DISCOVERY
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
+#else
+	/* special case until sed_ioctl() supports discovery */
+	ret = sed_init(&dev, opts->dev_path, true);
+#endif
 	if (ret) {
 		sedcli_printf(LOG_ERR, "%s: Error initializing device\n", opts->dev_path);
 		return -EINVAL;
@@ -821,7 +893,7 @@ static int handle_ownership(void)
 		return -1;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
@@ -849,7 +921,7 @@ static int handle_activatelsp(void)
 		return -1;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
@@ -877,7 +949,7 @@ static int handle_reverttper(void)
 		return -1;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
@@ -905,7 +977,7 @@ static int handle_lock_unlock(void)
 		return -1;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
@@ -933,7 +1005,7 @@ static int handle_setup_global_range(void)
 		return -1;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
@@ -982,7 +1054,7 @@ static int handle_setpw(void)
 		return -1;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n", opts->dev_path);
 		return ret;
@@ -1042,7 +1114,7 @@ static int handle_mbr_control(void)
 		return -EINVAL;
 	}
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
 				opts->dev_path);
@@ -1084,7 +1156,7 @@ static int handle_write_mbr(void)
 	struct stat mbr_st;
 	void *mbr_mmap;
 
-	ret = sed_init(&dev, opts->dev_path);
+	ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
 				opts->dev_path);
@@ -1138,7 +1210,7 @@ init_deinit:
 static int handle_blocksid(void)
 {
 	struct sed_device *dev = NULL;
-	int ret = sed_init(&dev, opts->dev_path);
+	int ret = sed_init(&dev, opts->dev_path, opts->pass_thru);
 
 	if (ret) {
 		sedcli_printf(LOG_ERR, "Error in initializing the dev: %s\n",
@@ -1193,6 +1265,7 @@ int main(int argc, char *argv[])
 		sedcli_printf(LOG_ERR, "Failed to allocated memory\n");
 		return -ENOMEM;
 	}
+	opts->pass_thru = 0;
 
 	status = args_parse(&app_values, sedcli_commands, argc, argv);
 
