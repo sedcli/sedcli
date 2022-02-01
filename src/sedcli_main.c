@@ -68,7 +68,7 @@ static int handle_provision(void);
 
 static cli_option sed_discv_opts[] = {
 	{'d', "device", "Device node e.g. /dev/nvme0n1", 1, "DEVICE", CLI_OPTION_REQUIRED},
-	{'f', "format", "Output format: {normal|udev}", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
+	{'f', "format", "Output format: {normal|udev|numeric}", 1, "FMT", CLI_OPTION_OPTIONAL_ARG},
 	COMMON_OPTS,
 	{0}
 };
@@ -355,6 +355,7 @@ static int quiet = 0;
 enum sed_print_flags {
 	SED_NORMAL,
 	SED_UDEV,
+	SED_UDEV_NUM,
 };
 
 static int handle_common_opts(char *opt, char **arg)
@@ -480,6 +481,8 @@ enum sed_print_flags val_output_fmt(const char *fmt)
 		return SED_NORMAL;
 	if (!strcmp(fmt, "udev"))
 		return SED_UDEV;
+	if (!strcmp(fmt, "numeric"))
+		return SED_UDEV_NUM;
 	return -EINVAL;
 }
 
@@ -997,11 +1000,13 @@ static void sed_discv_print_normal(struct sed_opal_device_discv *discv, const ch
 #define SED_ENABLE "ENABLED"
 #define SED_DISABLE "DISABLED"
 
-static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
+static void sed_discv_print_udev(struct sed_opal_device_discv *discv, bool numeric)
 {
 	bool locking_enabled, locking_supp, locked, mbr_enabled, mbr_done;
 	uint16_t comid = 0;
 	uint8_t locking_feat = discv->sed_lvl0_discv.locking_feat;
+	char *on = numeric ? "1" : SED_ENABLE;
+	char *off = numeric ? "0" : SED_DISABLE;
 
 	locking_supp = (locking_feat & SED_L0DISC_LOCKING_FEAT_SUPP) ? true : false;
 	locking_enabled = (locking_feat & SED_L0DISC_LOCKING_FEAT_LOCKING_EN) ? true : false;
@@ -1017,14 +1022,14 @@ static void sed_discv_print_udev(struct sed_opal_device_discv *discv)
 		comid = discv->sed_lvl0_discv.sed_opalv100.v1_base_comid;
 	}
 
-	sedcli_printf(LOG_INFO, "DEV_SED_COMPATIBLE=%s\n", comid ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_COMPATIBLE=%s\n", comid ? on : off);
 	/* this name is misleading: does not specify if device is actually locked */
-	sedcli_printf(LOG_INFO, "DEV_SED_LOCKED=%s\n", locking_enabled ? SED_ENABLE : SED_DISABLE);
-	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING_SUPP=%s\n", locking_supp ? SED_ENABLE : SED_DISABLE);
-	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING=%s\n", locking_enabled ? SED_ENABLE : SED_DISABLE);
-	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING_LOCKED=%s\n", locked ? SED_ENABLE : SED_DISABLE);
-	sedcli_printf(LOG_INFO, "DEV_SED_MBR_SHADOW=%s\n", mbr_enabled ? SED_ENABLE : SED_DISABLE);
-	sedcli_printf(LOG_INFO, "DEV_SED_MBR_DONE=%s\n", mbr_done ? SED_ENABLE : SED_DISABLE);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKED=%s\n", locking_enabled ? on : off);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING_SUPP=%s\n", locking_supp ? on : off);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING=%s\n", locking_enabled ? on : off);
+	sedcli_printf(LOG_INFO, "DEV_SED_LOCKING_LOCKED=%s\n", locked ? on : off);
+	sedcli_printf(LOG_INFO, "DEV_SED_MBR_SHADOW=%s\n", mbr_enabled ? on : off);
+	sedcli_printf(LOG_INFO, "DEV_SED_MBR_DONE=%s\n", mbr_done ? on : off);
 }
 
 static int handle_sed_discv(void)
@@ -1056,7 +1061,11 @@ static int handle_sed_discv(void)
 		ret = 0;
 		break;
 	case SED_UDEV:
-		sed_discv_print_udev(&discv);
+		sed_discv_print_udev(&discv, false);
+		ret = 0;
+		break;
+	case SED_UDEV_NUM:
+		sed_discv_print_udev(&discv, true);
 		ret = 0;
 		break;
 	default:
