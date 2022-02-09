@@ -195,6 +195,29 @@ int sedopal_activatelsp(struct sed_device *dev, const struct sed_key *key, char 
 	return ioctl(fd, IOC_OPAL_ACTIVATE_LSP, &opal_activate);
 }
 
+int sedopal_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key)
+{
+#ifdef CONFIG_OPAL_DRIVER_REVERTLSP
+	struct opal_revert_lsp rev = { };
+	int fd = dev->fd;
+
+	if (key == NULL) {
+		SEDCLI_DEBUG_MSG("User must provide password\n");
+		return -EINVAL;
+	}
+
+	if (keep_global_rn_key)
+		rev.options |= OPAL_PRESERVE;
+	if (set_opal_key(key, &rev.key) != 0) {
+		return -EINVAL;
+	}
+
+	return ioctl(fd, IOC_OPAL_REVERT_LSP, &rev);
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+
 int sedopal_setup_global_range(struct sed_device *dev, const struct sed_key *key)
 {
 	struct opal_user_lr_setup setup = { };
@@ -406,9 +429,22 @@ int sedopal_reverttper(struct sed_device *dev, const struct sed_key *key,
 {
 	int fd = dev->fd;
 	unsigned long ioctl_code;
+	int ret = 0;
 
-	if (non_destructive)
-		return -EOPNOTSUPP;
+	if (psid && non_destructive) {
+		SEDCLI_DEBUG_MSG("non_destructive cannot be performed when psid is selected.\n");
+		return -EINVAL;
+	}
+	if (dev == NULL || key == NULL) {
+		SEDCLI_DEBUG_MSG("Must provide a password or a valid device\n");
+		return -EINVAL;
+	}
+
+	if (non_destructive) {
+		ret = sedopal_revertlsp(dev, key, true);
+		if (ret)
+			return ret;
+	}
 
 	if (psid) {
 #ifdef CONFIG_OPAL_DRIVER_PSID_REVERT

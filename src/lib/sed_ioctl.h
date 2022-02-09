@@ -20,6 +20,8 @@ int sedopal_takeownership(struct sed_device *dev, const struct sed_key *key);
 
 int sedopal_activatelsp(struct sed_device *dev, const struct sed_key *key, char *lr_str, bool sum);
 
+int sedopal_revertlsp(struct sed_device *dev, const struct sed_key *key, bool keep_global_rn_key);
+
 int sedopal_setuplr(struct sed_device *dev, const struct sed_key *key,
 		const char *user, uint8_t lr, size_t range_start,
 		size_t range_length, bool sum, bool RLE, bool WLE);
