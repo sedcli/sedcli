@@ -3,14 +3,14 @@
 TCG Opal is an industry standard allowing Self-Encrypting Drives management,
 i.e. enable locking, configuring users, locking ranges etc.
 
-Sedcli is an utility for managing NVMe SEDs that are TCG Opal complaint.
+Sedcli is an utility for managing NVMe SEDs that are TCG Opal compliant.
 
 Libsed is a library allowing to programatically manage NVMe SEDs that are TCG
-Opal complaint.
+Opal compliant.
 
 ## Getting started
 
-In order to get started use following steps (\<sedcli\> denotes top level
+In order to get started, use the following steps (\<sedcli\> denotes top level
 directory for sedcli):
 
 ```
@@ -25,21 +25,21 @@ cd <sedcli>/src
 make
 make install
 
-# invoke sedcli help to available commands and its syntax
+# invoke sedcli help for available commands and their syntax
 sedcli -H
 
-# alterntively read sedcli man page
+# alternatively read sedcli man page
 man sedcli
 
 ```
-For more information goto [doc](doc) directory.
+For more information, go to the [doc](doc) directory.
 
 ## Features
 
 * Interactive management of NVMe SED allowing to: configure locking, change
-lock state, revert disk back to manafactured state
+lock state, revert disk back to manufactured state
 * Coming soon: auto management with disk key being retrieved from network
-attached Key Management Server that is OASIS KMIP complaint
+attached Key Management Server that is OASIS KMIP compliant
 
 ## Talks and papers
 
@@ -50,7 +50,7 @@ attached Key Management Server that is OASIS KMIP complaint
 We encourage contributions! Patches are accepted via pull request:
 * Contributions into sedcli are accepted on GPL-2.0-or-later license
 * Contributions into libsed are accepted on LGPL-2.1-or-later license
-* Patches must be signedoff by the developer. This indicates that submitter
+* Patches must be signed off by the developer. This indicates that submitter
 agrees to the **Developer Certificate of Origin**
 [DCO](https://developercertificate.org)
 
