@@ -1477,14 +1477,6 @@ static int handle_provision(void)
 		sedcli_printf(LOG_ERR, "%s: Error setting up global locking range\n", opts->dev_path);
 		goto print_deinit;
 	}
-	ret = sed_shadowmbr(dev, &opts->pwd, true);
-	if (ret) {
-		sedcli_printf(LOG_ERR, "%s: Error enabling shadow MBR\n", opts->dev_path);
-		goto print_deinit;
-	}
-	ret = sed_mbrdone(dev, &opts->pwd, true);
-	if (ret)
-		sedcli_printf(LOG_ERR, "%s: Error setting MBRDone\n", opts->dev_path);
 
 print_deinit:
 	print_sed_status(ret);
