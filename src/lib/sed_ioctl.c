@@ -56,11 +56,7 @@ static int set_opal_key(const struct sed_key *key, struct opal_key *okey)
 #ifdef CONFIG_OPAL_DRIVER_KEY_TYPE
 	case SED_KEY_KEYRING:
 		okey->key_type = OPAL_KEYRING;
-		if (key->key_sn > 0) {
-			okey->key_len = sizeof(okey->key_sn);
-			okey->key_sn = key->key_sn;
-		} else
-			okey->key_len = 0;
+		okey->key_len = 0;
 		return 0;
 #endif
 	default:
@@ -508,7 +504,6 @@ int sedopal_getpwd(struct sed_key_options *opts, enum SED_AUTHORITY auth,
 {
 	if (opts->key_src == SED_KEY_KEYRING) {
 		key->src = SED_KEY_KEYRING;
-		key->key_sn = opts->key_sn;
 		return 0;
 	}
 	return -EOPNOTSUPP;

@@ -374,7 +374,7 @@ static int get_keyring_expr(char *arg, struct sed_key_options *kopts)
 {
 	/* parse [%:keyring]%key-type:key-desc */
 	/* initial '%' has been removed. */
-	key_serial_t kr = 0, sn = 0;
+	key_serial_t kr = 0;
 
 	char *krx = arg;
 	char *ktx = strchr(arg, '%');
@@ -397,46 +397,17 @@ static int get_keyring_expr(char *arg, struct sed_key_options *kopts)
 		if (kr <= 0) {
 			return -EINVAL;
 		}
-		sn = keyctl_search(kr, ktx, kkx, 0);
-	} else {
-		sn = find_key_by_type_and_desc(ktx, kkx, 0);
 	}
-	if (sn <= 0) {
-		return -EINVAL;
-	}
-	kopts->key_sn = sn;
 	return 0;
 }
 
 static int get_keyring_opts(char *arg, struct sed_key_options *kopts)
 {
 	/*
-	 * syntax: keyring[:{<key-serial>|[%:<keyring>]%<type>:<desc>}]
+	 * syntax: keyring
 	 * examples:
 	 * 	-k keyring
-	 * 	-k keyring:1234567
-	 * 	-k keyring:%user:sed-opal-pek
-	 * 	-k keyring:%:_ses%user:sed-opal-pek
 	 */
-	kopts->key_sn = 0UL;	/* default to sed-opal keyring/key */
-	if (*arg) {
-		if (*arg++ != ':') {
-			return -EINVAL;
-		}
-		if (*arg == '%') {
-			if (get_keyring_expr(arg + 1, kopts) != 0) {
-				return -EINVAL;
-			}
-		} else {
-			unsigned long sn;
-			char *end;
-			sn = strtoul(arg, &end, 0);
-			if (end == arg || *end) {
-				return -EINVAL;
-			}
-			kopts->key_sn = sn;
-		}
-	}
 	kopts->key_src = SED_KEY_KEYRING;
 	return 0;
 }

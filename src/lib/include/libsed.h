@@ -99,9 +99,6 @@ struct sed_device;
 
 struct sed_key_options {
 	enum sed_key_src key_src;	/* how to get key */
-	union {
-		long key_sn;
-	};
 };
 
 struct sed_geometry_supported_feat {
@@ -196,7 +193,6 @@ struct sed_key {
 	enum sed_key_src src;
 	union {
 		void *param;	/* depends on src */
-		long key_sn;	/* for SED_KEY_KEYRING */
 	};
 };
 
