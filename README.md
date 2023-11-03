@@ -1,3 +1,12 @@
+# this is the old repository, but there is a new one!
+
+Great news!
+The sedcli project is being developed further, its current repository is: [sedcli](https://github.com/solidigm/sedcli)
+
+The current repository is going into read-only status.
+
+---
+
 # sedcli and libsed overview
 
 TCG Opal is an industry standard allowing Self-Encrypting Drives management,
